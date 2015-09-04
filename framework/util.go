@@ -7,6 +7,7 @@ import (
 	kafka "github.com/stealthly/go_kafka_client"
 	"hash/fnv"
 	"reflect"
+	"fmt"
 )
 
 type hashArray []*kafka.TopicAndPartition
@@ -65,4 +66,20 @@ func getRangeResources(offer *mesos.Offer, resourceName string) []*mesos.Value_R
 		resources = append(resources, res.GetRanges().GetRange()...)
 	}
 	return resources
+}
+
+type intArray []int32
+
+func (s intArray) Len() int           { return len(s) }
+func (s intArray) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s intArray) Less(i, j int) bool { return s[i] < s[j] }
+
+type byName []kafka.ConsumerThreadId
+
+func (a byName) Len() int      { return len(a) }
+func (a byName) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a byName) Less(i, j int) bool {
+	this := fmt.Sprintf("%s-%d", a[i].Consumer, a[i].ThreadId)
+	that := fmt.Sprintf("%s-%d", a[j].Consumer, a[j].ThreadId)
+	return this < that
 }
