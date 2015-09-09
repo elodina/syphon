@@ -1,5 +1,7 @@
 package consumer
 
+import "sync"
+
 type TopicAndPartition struct {
 	Topic     string
 	Partition int32
@@ -67,4 +69,11 @@ func (this *TopicAndPartitionSet) GetArray() []TopicAndPartition {
 	}
 
 	return result
+}
+
+func inLock(lock *sync.Mutex, fun func()) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	fun()
 }

@@ -1,20 +1,55 @@
 package framework
 
 import (
+	"bytes"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"github.com/elodina/syphon/consumer"
 	"github.com/mesos/mesos-go/executor"
 	mesos "github.com/mesos/mesos-go/mesosproto"
-    "encoding/json"
+	"github.com/stealthly/siesta"
+	"io/ioutil"
+	"log"
+	"net/http"
 )
 
 type HttpMirrorExecutor struct {
 	partitionConsumer *consumer.PartitionConsumer
+	httpsClient       *http.Client
+	targetURL         string
 }
 
 // Creates a new HttpMirrorExecutor with a given config.
-func NewHttpMirrorExecutor() *HttpMirrorExecutor {
-	return &HttpMirrorExecutor{}
+func NewHttpMirrorExecutor(certFile, keyFile, caFile, targetURL string) *HttpMirrorExecutor {
+	// Load client cert
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Load CA cert
+	caCert, err := ioutil.ReadFile(caFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	// Setup HTTPS client
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      caCertPool,
+	}
+	tlsConfig.BuildNameToCertificate()
+	transport := &http.Transport{TLSClientConfig: tlsConfig}
+	httpsClient := &http.Client{Transport: transport}
+
+	return &HttpMirrorExecutor{
+		httpsClient: httpsClient,
+		targetURL:   targetURL,
+	}
 }
 
 // mesos.Executor interface method.
@@ -46,9 +81,9 @@ func (this *HttpMirrorExecutor) LaunchTask(driver executor.ExecutorDriver, taskI
 		State:  mesos.TaskState_TASK_RUNNING.Enum(),
 	}
 
-    config := &consumer.PartitionConsumerConfig{}
-    json.Unmarshal(taskInfo.Data, config)
-    this.partitionConsumer = consumer.NewPartitionConsumer(*config)
+	config := &consumer.PartitionConsumerConfig{}
+	json.Unmarshal(taskInfo.Data, config)
+	this.partitionConsumer = consumer.NewPartitionConsumer(*config)
 
 	if _, err := driver.SendStatusUpdate(runStatus); err != nil {
 		fmt.Printf("Failed to send status update: %s\n", runStatus)
@@ -78,7 +113,47 @@ func (this *HttpMirrorExecutor) Error(driver executor.ExecutorDriver, err string
 	fmt.Printf("Got error message: %s\n", err)
 }
 
-func (this *HttpMirrorExecutor) Assign(tps []*consumer.TopicAndPartition) {
-    tpSet := this.partitionConsumer.GetTopicPartitions()
-    tpSet.RemoveAll(tps)
+func (this *HttpMirrorExecutor) Assign(tps []consumer.TopicAndPartition) {
+	tpSet := this.partitionConsumer.GetTopicPartitions()
+	tpSet.RemoveAll(tps)
+	for _, tp := range tpSet.GetArray() {
+		this.partitionConsumer.Remove(tp.Topic, tp.Partition)
+	}
+
+	for _, tp := range tps {
+		this.partitionConsumer.Add(tp.Topic, tp.Partition, this.MirrorMessage)
+	}
+}
+
+func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, message *siesta.Message) error {
+	encodedMessage, err := json.Marshal(EncodeMessage(topic, partition, []*siesta.Message{message}))
+	if err != nil {
+		return err
+	}
+	http.NewRequest("POST", this.targetURL, bytes.NewReader(encodedMessage))
+
+	return nil
+}
+
+type TransferMessage struct {
+	Topic     string
+	Partition int32
+	Data      []byte
+}
+
+func EncodeMessage(topic string, partition int32, messages []*siesta.MessageAndOffset) []*TransferMessage {
+	msgs := make([]*TransferMessage, 0)
+	for _, message := range messages {
+		if message.Message.Nested != nil && len(message.Message.Nested) > 0 {
+			msgs = append(msgs, EncodeMessage(topic, partition, message.Message.Nested)...)
+		} else {
+			msgs = append(msgs, &TransferMessage{
+				Topic:     topic,
+				Partition: partition,
+				Data:      message.Message.Value,
+			})
+		}
+	}
+
+	return msgs
 }

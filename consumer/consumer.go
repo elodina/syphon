@@ -3,14 +3,16 @@ package consumer
 import (
 	"fmt"
 	"github.com/stealthly/siesta"
+	"sync"
 	"sync/atomic"
 	"time"
 )
 
 type PartitionConsumer struct {
-	config      PartitionConsumerConfig
-	kafkaClient siesta.Connector
-	fetchers    map[string]map[int32]*FetcherState
+	config       PartitionConsumerConfig
+	kafkaClient  siesta.Connector
+	fetchers     map[string]map[int32]*FetcherState
+	fetchersLock sync.Mutex
 }
 
 type PartitionConsumerConfig struct {
@@ -145,6 +147,13 @@ func NewPartitionConsumer(consumerConfig PartitionConsumerConfig) *PartitionCons
 									fmt.Println(err.Error())
 								}
 							}
+							if fetcherState.Removed {
+								inLock(&consumer.fetchersLock, func() {
+									if consumer.fetchers[topic][partition].Removed {
+										delete(consumer.fetchers[topic], partition)
+									}
+								})
+							}
 						}
 					}
 					commitTimer.Reset(consumerConfig.CommitInterval)
@@ -160,23 +169,32 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 	if _, exists := this.fetchers[topic]; !exists {
 		this.fetchers[topic] = make(map[int32]*FetcherState)
 	}
-	if _, exists := this.fetchers[topic][partition]; exists {
+	var fetcherState *FetcherState
+	inLock(&this.fetchersLock, func() {
+		if _, exists := this.fetchers[topic][partition]; !exists || this.fetchers[topic][partition].Removed {
+			if !exists {
+				offset, err := this.kafkaClient.GetOffset(this.config.Group, topic, partition)
+				if err != nil {
+					//It's not critical, since offsets have not been committed yet
+					fmt.Println(err.Error())
+				}
+				fetcherState := NewFetcherState(offset)
+				this.fetchers[topic][partition] = fetcherState
+			} else {
+				this.fetchers[topic][partition].Removed = false
+			}
+		}
+	})
+
+	if fetcherState == nil {
 		return nil
 	}
 
-	offset, err := this.kafkaClient.GetOffset(this.config.Group, topic, partition)
-	if err != nil {
-		//It's not critical, since offsets have not been committed yet
-		fmt.Println(err.Error())
-	}
-
-	fetcherState := NewFetcherState(offset)
-	this.fetchers[topic][partition] = fetcherState
 	go func() {
 		for {
 			response, err := this.kafkaClient.Fetch(topic, partition, fetcherState.GetOffset()+1)
 			select {
-			case <-fetcherState.stopChannel:
+			case fetcherState.Removed = <-fetcherState.stopChannel:
 				{
 					break
 				}
@@ -192,11 +210,9 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 						continue
 					}
 
-					for _, messageAndOffset := range response.Data[topic][partition].Messages {
-						err = strategy(messageAndOffset.Message)
-						if err != nil {
-							fmt.Println(err.Error())
-						}
+					err = strategy(topic, partition, response.Data[topic][partition].Messages)
+					if err != nil {
+						fmt.Println(err.Error())
 					}
 
 					offsetIndex := len(response.Data[topic][partition].Messages) - 1
@@ -231,6 +247,7 @@ func (this *PartitionConsumer) GetTopicPartitions() *TopicAndPartitionSet {
 
 type FetcherState struct {
 	LastCommitted int64
+	Removed       bool
 	offset        int64
 	stopChannel   chan bool
 }
@@ -255,4 +272,4 @@ func (this *FetcherState) SetOffset(offset int64) {
 	atomic.StoreInt64(&this.offset, offset)
 }
 
-type Strategy func(message *siesta.Message) error
+type Strategy func(topic string, partition int32, message *siesta.MessageAndOffset) error
