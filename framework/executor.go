@@ -117,7 +117,7 @@ func (this *HttpMirrorExecutor) Error(driver executor.ExecutorDriver, err string
 func (this *HttpMirrorExecutor) Assign(tps []consumer.TopicAndPartition) {
 	tpSet := this.partitionConsumer.GetTopicPartitions()
 	tpSet.RemoveAll(tps)
-	for tp := range tpSet {
+	for _, tp := range tpSet.GetArray() {
 		this.partitionConsumer.Remove(tp.Topic, tp.Partition)
 	}
 
