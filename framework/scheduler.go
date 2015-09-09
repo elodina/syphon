@@ -57,31 +57,17 @@ func NewElodinaTransportSchedulerConfig() ElodinaTransportSchedulerConfig {
 }
 
 type ElodinaTransportScheduler struct {
-	config                 *ElodinaTransportSchedulerConfig
-	runningInstances       int32
-	taskIdToTaskState      map[string]*ElodinaTransport
-	toKill 				   []*ElodinaTransport
-	coordinator            kafka.ConsumerCoordinator
+	config            *ElodinaTransportSchedulerConfig
+	runningInstances  int32
+	taskIdToTaskState map[string]*ElodinaTransport
+	toKill            []*ElodinaTransport
+	coordinator       kafka.ConsumerCoordinator
 }
 
 func NewElodinaTransportScheduler(config ElodinaTransportSchedulerConfig) *ElodinaTransportScheduler {
-	coordinatorConfig := kafka.NewZookeeperConfig()
-	coordinatorConfig.ZookeeperConnect = strings.Split(config.transportConfig.CoordinatorURL, ",")
-	coordinator := kafka.NewZookeeperCoordinator(coordinatorConfig)
-	err := coordinator.Connect()
-	if err != nil {
-		panic(err)
-	}
-
 	scheduler := &ElodinaTransportScheduler{
-		config:                 &config,
-		taskIdToTaskState:      make(map[string]*ElodinaTransport),
-		coordinator:            coordinator,
-	}
-
-	scheduler.subscribeForChanges(config.transportConfig.Groupid)
-	if err != nil {
-		panic(err)
+		config:            &config,
+		taskIdToTaskState: make(map[string]*ElodinaTransport),
 	}
 
 	return scheduler
