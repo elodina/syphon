@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+    "errors"
 )
 
 type HttpMirrorExecutor struct {
@@ -125,12 +126,28 @@ func (this *HttpMirrorExecutor) Assign(tps []consumer.TopicAndPartition) {
 	}
 }
 
-func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, message *siesta.Message) error {
-	encodedMessage, err := json.Marshal(EncodeMessage(topic, partition, []*siesta.Message{message}))
+func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, messages []*siesta.MessageAndOffset) error {
+	encodedMessage, err := json.Marshal(EncodeMessage(topic, partition, messages))
 	if err != nil {
 		return err
 	}
-	http.NewRequest("POST", this.targetURL, bytes.NewReader(encodedMessage))
+    request, err := http.NewRequest("POST", this.targetURL, bytes.NewReader(encodedMessage))
+    if err != nil {
+        return err
+    }
+	resp, err := this.httpsClient.Do(request)
+    if err != nil {
+        return err
+    }
+    if resp.StatusCode != 200 {
+        defer resp.Body.Close()
+        bodyData, err := ioutil.ReadAll(resp.Body)
+        if err != nil {
+            return err
+        }
+
+        return errors.New(string(bodyData))
+    }
 
 	return nil
 }
