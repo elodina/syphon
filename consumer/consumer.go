@@ -272,4 +272,4 @@ func (this *FetcherState) SetOffset(offset int64) {
 	atomic.StoreInt64(&this.offset, offset)
 }
 
-type Strategy func(topic string, partition int32, message *[]siesta.MessageAndOffset) error
+type Strategy func(topic string, partition int32, message []*siesta.MessageAndOffset) error
