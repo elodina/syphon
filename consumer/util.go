@@ -7,9 +7,7 @@ type TopicAndPartition struct {
 	Partition int32
 }
 
-type TopicAndPartitionSet struct {
-	internal map[TopicAndPartition]bool
-}
+type TopicAndPartitionSet map[TopicAndPartition]bool
 
 func NewTopicAndPartitionSet() *TopicAndPartitionSet {
 	return &TopicAndPartitionSet{
@@ -18,14 +16,14 @@ func NewTopicAndPartitionSet() *TopicAndPartitionSet {
 }
 
 func (this *TopicAndPartitionSet) Contains(tp TopicAndPartition) bool {
-	_, exists := this.internal[tp]
+	_, exists := this[tp]
 	return exists
 }
 
 func (this *TopicAndPartitionSet) Add(tp TopicAndPartition) bool {
 	exists := this.Contains(tp)
 	if exists {
-		this.internal[tp] = true
+		this[tp] = true
 	}
 
 	return exists
@@ -34,7 +32,7 @@ func (this *TopicAndPartitionSet) Add(tp TopicAndPartition) bool {
 func (this *TopicAndPartitionSet) Remove(tp TopicAndPartition) bool {
 	exists := this.Contains(tp)
 	if exists {
-		delete(this.internal, tp)
+		delete(this, tp)
 	}
 
 	return exists
@@ -60,15 +58,6 @@ func (this *TopicAndPartitionSet) ContainsAll(tps []TopicAndPartition) bool {
 	}
 
 	return true
-}
-
-func (this *TopicAndPartitionSet) GetArray() []TopicAndPartition {
-	result := make([]TopicAndPartition, 0)
-	for tp, _ := range this.internal {
-		result = append(result, tp)
-	}
-
-	return result
 }
 
 func inLock(lock *sync.Mutex, fun func()) {
