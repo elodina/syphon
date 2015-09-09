@@ -234,8 +234,8 @@ func (this *PartitionConsumer) Remove(topic string, partition int32) {
 	}
 }
 
-func (this *PartitionConsumer) GetTopicPartitions() *TopicAndPartitionSet {
-	tpSet := NewTopicAndPartitionSet()
+func (this *PartitionConsumer) GetTopicPartitions() TopicAndPartitionSet {
+	tpSet := TopicAndPartitionSet{}
 	for topic, partitions := range this.fetchers {
 		for partition, _ := range partitions {
 			tpSet.Add(TopicAndPartition{topic, partition})
