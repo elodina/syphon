@@ -78,8 +78,7 @@ func (this *HttpMirrorExecutor) Error(driver executor.ExecutorDriver, err string
 	fmt.Printf("Got error message: %s\n", err)
 }
 
-// mesos.Executor interface method.
-// Invoked when a fatal error has occured with the executor and/or executor driver.
-func (this *HttpMirrorExecutor) Add(tps []*consumer.TopicAndPartition) {
-    fmt.Printf("Got error message: %s\n", err)
+func (this *HttpMirrorExecutor) Assign(tps []*consumer.TopicAndPartition) {
+    tpSet := this.partitionConsumer.GetTopicPartitions()
+    tpSet.RemoveAll(tps)
 }

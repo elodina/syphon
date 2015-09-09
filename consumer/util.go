@@ -59,3 +59,12 @@ func (this *TopicAndPartitionSet) ContainsAll(tps []TopicAndPartition) bool {
 
 	return true
 }
+
+func (this *TopicAndPartitionSet) GetArray() []TopicAndPartition {
+	result := make([]TopicAndPartition, 0)
+	for tp, _ := range this.internal {
+		result = append(result, tp)
+	}
+
+	return result
+}
