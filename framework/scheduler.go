@@ -12,7 +12,6 @@ import (
 	"github.com/stealthly/siesta"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -186,7 +185,7 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 func (this *ElodinaTransportScheduler) StatusUpdate(driver scheduler.SchedulerDriver, status *mesos.TaskStatus) {
 	fmt.Printf("Status update from executor %s task %s on slave %s: %s\n",
 		*status.GetExecutorId().Value, status.GetState().String(), *status.GetSlaveId().Value, string(status.GetData()))
-	if status.GetState().Enum() == mesos.TaskState_TASK_RUNNING {
+	if *status.GetState().Enum() == mesos.TaskState_TASK_RUNNING {
 		for _, transfer := range this.taskIdToTaskState {
 			if *transfer.task.Executor.ExecutorId.Value == *status.ExecutorId.Value {
 				transfer.pending = true

@@ -44,13 +44,13 @@ func main() {
     schedulerConfig.ServiceHost = *artifactServerHost
     schedulerConfig.ServicePort = *artifactServerPort
     schedulerConfig.ThreadsPerTask = *threadsPerTask
-    schedulerConfig.ConsumerConfig = mustReadConsumerConfig(consumerConfigPath)
+    schedulerConfig.ConsumerConfig = mustReadConsumerConfig(*consumerConfigPath)
 
     transportScheduler := framework.NewElodinaTransportScheduler(schedulerConfig)
     driverConfig := scheduler.DriverConfig{
         Scheduler: transportScheduler,
         Framework: frameworkInfo,
-        master:    *master,
+        Master:    *master,
     }
 
     driver, err := scheduler.NewMesosSchedulerDriver(driverConfig)
@@ -124,7 +124,7 @@ func mustReadConsumerConfig(path string) consumer.PartitionConsumerConfig {
     if err != nil {
         panic(err)
     }
-    config.FetchMinBytes = fetchMinBytes
+    config.FetchMinBytes = int32(fetchMinBytes)
     fetchSize, err := strconv.Atoi(cfgMap["fetch.size"])
     if err != nil {
         panic(err)
