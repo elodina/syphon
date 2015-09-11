@@ -48,6 +48,15 @@ type ElodinaTransportSchedulerConfig struct {
 
 	// Target produce URL
 	TargetURL string
+
+	//SSL certificate file path
+	SSLCertFilePath string
+
+	//SSL key file path
+	SSLKeyFilePath string
+
+	//SSL CA certificate file path
+	SSLCACertFilePath string
 }
 
 func NewElodinaTransportSchedulerConfig() ElodinaTransportSchedulerConfig {
@@ -187,11 +196,7 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 // Invoked when the status of a task has changed.
 func (this *ElodinaTransportScheduler) StatusUpdate(driver scheduler.SchedulerDriver, status *mesos.TaskStatus) {
 	if *status.GetState().Enum() == mesos.TaskState_TASK_RUNNING {
-		for _, transfer := range this.taskIdToTaskState {
-			if *transfer.task.Executor.ExecutorId.Value == *status.ExecutorId.Value {
-				transfer.pending = true
-			}
-		}
+		this.taskIdToTaskState[*status.TaskId.Value].pending = true
 	}
 }
 
@@ -235,6 +240,10 @@ func (this *ElodinaTransportScheduler) Shutdown(driver scheduler.SchedulerDriver
 func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources) (*mesos.Offer, *mesos.TaskInfo) {
 	fmt.Println(len(offers))
 	for _, offer := range offers {
+		configBlob, err := json.Marshal(this.config.ConsumerConfig)
+		if err != nil {
+			break
+		}
 		fmt.Printf("%v\n", offer)
 		if this.hasEnoughCpuAndMemory(offer.RemainingCpu, offer.RemainingMemory) {
 			port := this.takePort(&offer.RemainingPorts)
@@ -253,11 +262,12 @@ func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources
 					util.NewScalarResource("mem", float64(this.config.MemPerTask)),
 					util.NewRangesResource("ports", []*mesos.Value_Range{taskPort}),
 				},
+				Data: configBlob,
 			}
 			fmt.Printf("Prepared task: %s with offer %s for launch. Ports: %s\n", task.GetName(), offer.Offer.Id.GetValue(), taskPort)
 			this.incRunningInstances()
 
-			transport := NewElodinaTransport(fmt.Sprintf("http://%s:%d/assign", *offer.Offer.Hostname, port), task, this.config.StaleDuration)
+			transport := NewElodinaTransport(fmt.Sprintf("http://%s:%d/assign", *offer.Offer.Hostname, *port), task, this.config.StaleDuration)
 			this.taskIdToTaskState[*taskId.Value] = transport
 
 			fmt.Printf("Prepared task: %s with offer %s for launch. Ports: %s\n", task.GetName(), offer.Offer.Id.GetValue(), taskPort)
@@ -326,12 +336,27 @@ func (this *ElodinaTransportScheduler) createExecutor(instanceId int32, port uin
 		Name:       proto.String("Elodina Mirror Executor"),
 		Source:     proto.String("Elodina"),
 		Command: &mesos.CommandInfo{
-			Value: proto.String(fmt.Sprintf("./%s --port %d --ssl.cert cert.pem --ssl.key key.pem --ssl.cacert cacert.pem --target.url %s",
-				this.config.ExecutorBinaryName, port, this.config.TargetURL)),
+			Value: proto.String(fmt.Sprintf("./%s --port %d --ssl.cert %s --ssl.key %s --ssl.cacert %s --target.url %s",
+				this.config.ExecutorBinaryName, port, this.config.SSLCertFilePath, this.config.SSLKeyFilePath, this.config.SSLCACertFilePath, this.config.TargetURL)),
 			Uris: []*mesos.CommandInfo_URI{&mesos.CommandInfo_URI{
 				Value:      proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, this.config.ExecutorBinaryName)),
 				Executable: proto.Bool(true),
-			}},
+			},
+				&mesos.CommandInfo_URI{
+					Value: proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, this.config.SSLCertFilePath)),
+					Executable: proto.Bool(false),
+					Extract: proto.Bool(false),
+				},
+				&mesos.CommandInfo_URI{
+					Value: proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, this.config.SSLKeyFilePath)),
+					Executable: proto.Bool(false),
+					Extract: proto.Bool(false),
+				},
+				&mesos.CommandInfo_URI{
+					Value: proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, this.config.SSLCACertFilePath)),
+					Executable: proto.Bool(false),
+					Extract: proto.Bool(false),
+				}},
 			User: proto.String("stealthly"),
 		},
 	}
@@ -395,7 +420,7 @@ func (this *ElodinaTransportScheduler) assignPendingPartitions() {
 			}
 			resp, err := http.DefaultClient.Do(request)
 			if err != nil {
-				fmt.Println(err.Error())
+				panic(err.Error())
 			}
 			if resp.StatusCode != 200 {
 				func() {

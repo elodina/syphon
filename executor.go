@@ -27,8 +27,8 @@ func main() {
 	}
 	driver, err := executor.NewMesosExecutorDriver(driverConfig)
 
-	server := ExecutorHTTPServer{httpMirrorExecutor}
-	server.Start()
+	server := &ExecutorHTTPServer{httpMirrorExecutor}
+	go server.Start()
 
 	if err != nil {
 		fmt.Println("Unable to create a ExecutorDriver ", err.Error())
@@ -51,7 +51,7 @@ func (this *ExecutorHTTPServer) Start() {
 	r := mux.NewRouter()
 	r.HandleFunc("/assign", this.Assign).Methods("POST")
 
-	endpoint := fmt.Sprintf("%s:%d", *port)
+	endpoint := fmt.Sprintf(":%d", *port)
 	log.Printf("Serving on %s\n", endpoint)
 
 	http.ListenAndServe(endpoint, r)
@@ -65,5 +65,7 @@ func (this *ExecutorHTTPServer) Assign(w http.ResponseWriter, req *http.Request)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	fmt.Printf("%v\n", assignments)
+
 	this.httpMirrorExecutor.Assign(assignments)
 }

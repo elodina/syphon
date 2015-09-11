@@ -26,6 +26,9 @@ var cpuPerTask = flag.Float64("cpu.per.task", 0.2, "CPUs per task.")
 var memPerTask = flag.Float64("mem.per.task", 256, "Memory per task.")
 var targetUrl = flag.String("target.url", "", "Target URL.")
 var consumerConfigPath = flag.String("consumer.config", "consumer.properties", "Kafka consumer config file")
+var certFile = flag.String("ssl.cert", "", "SSL certificate file path.")
+var keyFile = flag.String("ssl.key", "", "SSL private key file path.")
+var caFile = flag.String("ssl.cacert", "", "Certifying Authority SSL Certificate file path.")
 
 func main() {
 	flag.Parse()
@@ -47,6 +50,9 @@ func main() {
 	schedulerConfig.ServicePort = *artifactServerPort
 	schedulerConfig.ThreadsPerTask = *threadsPerTask
 	schedulerConfig.TargetURL = *targetUrl
+	schedulerConfig.SSLCertFilePath = *certFile
+	schedulerConfig.SSLKeyFilePath = *keyFile
+	schedulerConfig.SSLCACertFilePath = *caFile
 	schedulerConfig.ConsumerConfig = mustReadConsumerConfig(*consumerConfigPath)
 
 	transportScheduler := framework.NewElodinaTransportScheduler(schedulerConfig)
