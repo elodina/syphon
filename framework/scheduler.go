@@ -1,6 +1,7 @@
 package framework
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/elodina/syphon/consumer"
@@ -9,12 +10,11 @@ import (
 	util "github.com/mesos/mesos-go/mesosutil"
 	"github.com/mesos/mesos-go/scheduler"
 	"github.com/stealthly/siesta"
+	"io/ioutil"
+	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
-	"net/http"
-	"bytes"
-	"io/ioutil"
 )
 
 type ElodinaTransportSchedulerConfig struct {
@@ -274,7 +274,7 @@ func (this *ElodinaTransportScheduler) launchNewTask(offers []OfferAndResources)
 }
 
 func (this *ElodinaTransportScheduler) hasEnoughCpuAndMemory(cpusOffered float64, memoryOffered float64) bool {
-	return this.config.CpuPerTask * float64(this.config.ThreadsPerTask) <= cpusOffered && this.config.MemPerTask * float64(this.config.ThreadsPerTask) <= memoryOffered
+	return this.config.CpuPerTask*float64(this.config.ThreadsPerTask) <= cpusOffered && this.config.MemPerTask*float64(this.config.ThreadsPerTask) <= memoryOffered
 }
 
 func (this *ElodinaTransportScheduler) getRunningInstances() int32 {
@@ -376,31 +376,33 @@ func (this *ElodinaTransportScheduler) hasEnoughInstances() bool {
 
 func (this *ElodinaTransportScheduler) assignPendingPartitions() {
 	for _, transfer := range this.taskIdToTaskState {
-		if transfer.IsPending() {
-			data, err := json.Marshal(transfer.GetAssignment())
+		if !transfer.IsPending() {
+			continue
+		}
+
+		data, err := json.Marshal(transfer.GetAssignment())
+		if err != nil {
+			fmt.Println(err.Error())
+		} else {
+			request, err := http.NewRequest("POST", transfer.GetConnectUrl(), bytes.NewReader(data))
 			if err != nil {
 				fmt.Println(err.Error())
+			}
+			resp, err := http.DefaultClient.Do(request)
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+			if resp.StatusCode != 200 {
+				func() {
+					defer resp.Body.Close()
+					body, err := ioutil.ReadAll(resp.Body)
+					if err != nil {
+						fmt.Println(err.Error())
+					}
+					fmt.Println(string(body))
+				}()
 			} else {
-				request, err := http.NewRequest("POST", transfer.GetConnectUrl(), bytes.NewReader(data))
-				if err != nil {
-					fmt.Println(err.Error())
-				}
-				resp, err := http.DefaultClient.Do(request)
-				if err != nil {
-					fmt.Println(err.Error())
-				}
-				if resp.StatusCode != 200 {
-					func(){
-						defer resp.Body.Close()
-						body, err := ioutil.ReadAll(resp.Body)
-						if err != nil {
-							fmt.Println(err.Error())
-						}
-						fmt.Println(string(body))
-					}()
-				} else {
-					transfer.pending = false
-				}
+				transfer.pending = false
 			}
 		}
 	}
