@@ -12,7 +12,6 @@ import (
 	"github.com/stealthly/siesta"
 	"io/ioutil"
 	"net/http"
-	"sync/atomic"
 	"time"
 )
 
@@ -70,7 +69,6 @@ func NewElodinaTransportSchedulerConfig() ElodinaTransportSchedulerConfig {
 
 type ElodinaTransportScheduler struct {
 	config               *ElodinaTransportSchedulerConfig
-	runningInstances     int32
 	taskIdToTaskState    map[string]*ElodinaTransport
 	kafkaClient          siesta.Connector
 	TakenTopicPartitions *consumer.TopicAndPartitionSet
@@ -251,7 +249,7 @@ func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources
 				Name:     proto.String(taskId.GetValue()),
 				TaskId:   taskId,
 				SlaveId:  offer.Offer.SlaveId,
-				Executor: this.createExecutor(this.runningInstances, *port),
+				Executor: this.createExecutor(len(this.taskIdToTaskState), *port),
 				Resources: []*mesos.Resource{
 					util.NewScalarResource("cpus", float64(this.config.CpuPerTask)),
 					util.NewScalarResource("mem", float64(this.config.MemPerTask)),
@@ -260,7 +258,6 @@ func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources
 				Data: configBlob,
 			}
 			fmt.Printf("Prepared task: %s with offer %s for launch. Ports: %s\n", task.GetName(), offer.Offer.Id.GetValue(), taskPort)
-			this.incRunningInstances()
 
 			transport := NewElodinaTransport(fmt.Sprintf("http://%s:%d/assign", *offer.Offer.Hostname, *port), task, this.config.StaleDuration)
 			this.taskIdToTaskState[*taskId.Value] = transport
@@ -282,18 +279,6 @@ func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources
 
 func (this *ElodinaTransportScheduler) hasEnoughCpuAndMemory(cpusOffered float64, memoryOffered float64) bool {
 	return this.config.CpuPerTask*float64(this.config.ThreadsPerTask) <= cpusOffered && this.config.MemPerTask*float64(this.config.ThreadsPerTask) <= memoryOffered
-}
-
-func (this *ElodinaTransportScheduler) getRunningInstances() int32 {
-	return atomic.LoadInt32(&this.runningInstances)
-}
-
-func (this *ElodinaTransportScheduler) incRunningInstances() {
-	atomic.AddInt32(&this.runningInstances, 1)
-}
-
-func (this *ElodinaTransportScheduler) decRunningInstances() {
-	atomic.AddInt32(&this.runningInstances, -1)
 }
 
 func (this *ElodinaTransportScheduler) tryKillTask(driver scheduler.SchedulerDriver, taskId *mesos.TaskID) error {
@@ -325,7 +310,7 @@ func (this *ElodinaTransportScheduler) takePort(ports *[]*mesos.Value_Range) *ui
 	return port
 }
 
-func (this *ElodinaTransportScheduler) createExecutor(instanceId int32, port uint64) *mesos.ExecutorInfo {
+func (this *ElodinaTransportScheduler) createExecutor(instanceId int, port uint64) *mesos.ExecutorInfo {
 	return &mesos.ExecutorInfo{
 		ExecutorId: util.NewExecutorID(fmt.Sprintf("elodina-mirror-%d", instanceId)),
 		Name:       proto.String("Elodina Mirror Executor"),
