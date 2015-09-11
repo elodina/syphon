@@ -72,7 +72,6 @@ type ElodinaTransportScheduler struct {
 	config               *ElodinaTransportSchedulerConfig
 	runningInstances     int32
 	taskIdToTaskState    map[string]*ElodinaTransport
-	toKill               []*ElodinaTransport
 	kafkaClient          siesta.Connector
 	TakenTopicPartitions *consumer.TopicAndPartitionSet
 }
@@ -136,13 +135,6 @@ func (this *ElodinaTransportScheduler) Disconnected(driver scheduler.SchedulerDr
 // Invoked when resources have been offered to this framework.
 func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.SchedulerDriver, offers []*mesos.Offer) {
 	fmt.Println("Received offers")
-	for _, transfer := range this.toKill {
-		this.tryKillTask(driver, transfer.task.TaskId)
-		this.removeTask(transfer.task.TaskId)
-		this.decRunningInstances()
-	}
-	this.toKill = make([]*ElodinaTransport, 0)
-
 	offersAndTasks := make(map[*mesos.Offer][]*mesos.TaskInfo)
 	remainingPartitions, err := this.GetTopicPartitions()
 	if err != nil {
@@ -197,6 +189,9 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 func (this *ElodinaTransportScheduler) StatusUpdate(driver scheduler.SchedulerDriver, status *mesos.TaskStatus) {
 	if *status.GetState().Enum() == mesos.TaskState_TASK_RUNNING {
 		this.taskIdToTaskState[*status.TaskId.Value].pending = true
+	} else if status.GetState() == mesos.TaskState_TASK_LOST || status.GetState() == mesos.TaskState_TASK_FAILED || status.GetState() == mesos.TaskState_TASK_FINISHED {
+		this.TakenTopicPartitions.RemoveAll(this.taskIdToTaskState[*status.TaskId.Value].GetAssignment())
+		delete(this.taskIdToTaskState, *status.TaskId.Value)
 	}
 }
 
