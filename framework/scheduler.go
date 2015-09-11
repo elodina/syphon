@@ -3,15 +3,18 @@ package framework
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/elodina/syphon/consumer"
 	"github.com/golang/protobuf/proto"
 	mesos "github.com/mesos/mesos-go/mesosproto"
 	util "github.com/mesos/mesos-go/mesosutil"
 	"github.com/mesos/mesos-go/scheduler"
-	kafka "github.com/stealthly/go_kafka_client"
-	"sort"
+	"github.com/stealthly/siesta"
 	"strings"
 	"sync/atomic"
 	"time"
+	"net/http"
+	"bytes"
+	"io/ioutil"
 )
 
 type ElodinaTransportSchedulerConfig struct {
@@ -38,14 +41,14 @@ type ElodinaTransportSchedulerConfig struct {
 	// Maximum retries to kill a task.
 	KillTaskRetries int
 
-	// Number of task instances to run.
-	Instances int
-
 	// time after partition is considered stale
 	StaleDuration time.Duration
 
 	// Mirror configuration
-	transportConfig *ElodinaTransportConfig
+	ConsumerConfig consumer.PartitionConsumerConfig
+
+	// Threads per task
+	ThreadsPerTask int
 }
 
 func NewElodinaTransportSchedulerConfig() ElodinaTransportSchedulerConfig {
@@ -57,18 +60,50 @@ func NewElodinaTransportSchedulerConfig() ElodinaTransportSchedulerConfig {
 }
 
 type ElodinaTransportScheduler struct {
-	config            *ElodinaTransportSchedulerConfig
-	runningInstances  int32
-	taskIdToTaskState map[string]*ElodinaTransport
-	toKill            []*ElodinaTransport
-	coordinator       kafka.ConsumerCoordinator
+	config               *ElodinaTransportSchedulerConfig
+	runningInstances     int32
+	taskIdToTaskState    map[string]*ElodinaTransport
+	toKill               []*ElodinaTransport
+	kafkaClient          siesta.Connector
+	TakenTopicPartitions *consumer.TopicAndPartitionSet
 }
 
 func NewElodinaTransportScheduler(config ElodinaTransportSchedulerConfig) *ElodinaTransportScheduler {
+	connectorConfig := siesta.NewConnectorConfig()
+	connectorConfig.BrokerList = config.ConsumerConfig.BrokerList
+	connectorConfig.ClientID = config.ConsumerConfig.ClientID
+	connectorConfig.CommitOffsetBackoff = config.ConsumerConfig.CommitOffsetBackoff
+	connectorConfig.CommitOffsetRetries = config.ConsumerConfig.CommitOffsetRetries
+	connectorConfig.ConnectTimeout = config.ConsumerConfig.ConnectTimeout
+	connectorConfig.ConsumerMetadataBackoff = config.ConsumerConfig.ConsumerMetadataBackoff
+	connectorConfig.ConsumerMetadataRetries = config.ConsumerConfig.ConsumerMetadataRetries
+	connectorConfig.FetchMaxWaitTime = config.ConsumerConfig.FetchMaxWaitTime
+	connectorConfig.FetchMinBytes = config.ConsumerConfig.FetchMinBytes
+	connectorConfig.FetchSize = config.ConsumerConfig.FetchSize
+	connectorConfig.KeepAlive = config.ConsumerConfig.KeepAlive
+	connectorConfig.KeepAliveTimeout = config.ConsumerConfig.KeepAliveTimeout
+	connectorConfig.MaxConnections = config.ConsumerConfig.MaxConnections
+	connectorConfig.MaxConnectionsPerBroker = config.ConsumerConfig.MaxConnectionsPerBroker
+	connectorConfig.MetadataBackoff = config.ConsumerConfig.MetadataBackoff
+	connectorConfig.MetadataRetries = config.ConsumerConfig.MetadataRetries
+	connectorConfig.ReadTimeout = config.ConsumerConfig.ReadTimeout
+	connectorConfig.WriteTimeout = config.ConsumerConfig.WriteTimeout
+	kafkaClient, err := siesta.NewDefaultConnector(connectorConfig)
+	if err != nil {
+		panic(err)
+	}
+
 	scheduler := &ElodinaTransportScheduler{
 		config:            &config,
 		taskIdToTaskState: make(map[string]*ElodinaTransport),
+		kafkaClient:       kafkaClient,
 	}
+
+	tpSet, err := scheduler.GetTopicPartitions()
+	if err != nil {
+		panic(err)
+	}
+	scheduler.TakenTopicPartitions = tpSet
 
 	return scheduler
 }
@@ -104,53 +139,68 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 	this.toKill = make([]*ElodinaTransport, 0)
 
 	offersAndTasks := make(map[*mesos.Offer][]*mesos.TaskInfo)
-	transports := make([]*ElodinaTransport, 0)
-	for _, offer := range offers {
-		cpus := getScalarResources(offer, "cpus")
-		memory := getScalarResources(offer, "mem")
-		ports := getRangeResources(offer, "ports")
-
-		remainingCpus := cpus
-		remainingMemory := memory
-		var tasks []*mesos.TaskInfo
-		for !this.hasEnoughInstances() && this.hasEnoughCpuAndMemory(cpus, memory) {
-			port := this.takePort(&ports)
-			taskPort := &mesos.Value_Range{Begin: port, End: port}
-			taskId := &mesos.TaskID{
-				Value: proto.String(fmt.Sprintf("elodina-mirror-%s-%d", *offer.Hostname, *port)),
+	remainingPartitions, err := this.GetTopicPartitions()
+	if err != nil {
+		return
+	}
+	remainingPartitions.RemoveAll(this.TakenTopicPartitions.GetArray())
+	tps := remainingPartitions.GetArray()
+	offersAndResources := this.wrapInOfferAndResources(offers)
+	for !remainingPartitions.IsEmpty {
+		if this.hasEnoughInstances() {
+			for _, transfer := range this.taskIdToTaskState {
+				if len(transfer.assignment) < this.config.ThreadsPerTask {
+					transfer.assignment = append(transfer.assignment, tps[0])
+					remainingPartitions.Remove(tps[0])
+					this.TakenTopicPartitions.Add(tps[0])
+					if len(tps) > 1 {
+						tps = tps[1:]
+					} else {
+						tps = []consumer.TopicAndPartition{}
+					}
+				}
 			}
-
-			task := &mesos.TaskInfo{
-				Name:     proto.String(taskId.GetValue()),
-				TaskId:   taskId,
-				SlaveId:  offer.SlaveId,
-				Executor: this.createExecutor(this.runningInstances, *port),
-				Resources: []*mesos.Resource{
-					util.NewScalarResource("cpus", float64(this.config.CpuPerTask)),
-					util.NewScalarResource("mem", float64(this.config.MemPerTask)),
-					util.NewRangesResource("ports", []*mesos.Value_Range{taskPort}),
-				},
+		} else {
+			offer, task := this.launchNewTask(offersAndResources)
+			if offer != nil && task != nil {
+				offersAndTasks[offer] = append(offersAndTasks[offer], task)
+			} else {
+				for _, offer := range offers {
+					if _, exists := offersAndTasks[offer]; !exists {
+						offersAndTasks[offer] = make([]*mesos.TaskInfo, 0)
+					}
+				}
+				break
 			}
-			fmt.Printf("Prepared task: %s with offer %s for launch. Ports: %s\n", task.GetName(), offer.Id.GetValue(), taskPort)
-
-			ports = ports[1:]
-			remainingCpus -= this.config.CpuPerTask
-			remainingMemory -= this.config.MemPerTask
-			this.incRunningInstances()
-
-			tasks = append(tasks, task)
-			transport := NewElodinaTransport(task, this.config.StaleDuration)
-			transports = append(transports, transport)
-			this.taskIdToTaskState[*taskId.Value] = transport
 		}
-		offersAndTasks[offer] = tasks
 	}
 
-	this.assignPartitions(transports)
-
-	unlaunchedTasks := this.config.Instances - int(this.getRunningInstances())
-	if unlaunchedTasks > 0 {
-		fmt.Printf("There are still %d tasks to be launched and no more resources are available.", unlaunchedTasks)
+	for _, transfer := range this.taskIdToTaskState {
+		if transfer.IsPending() {
+			data, err := json.Marshal(transfer.GetAssignment())
+			if err != nil {
+				fmt.Println(err.Error())
+			} else {
+				request, err := http.NewRequest("POST", transfer.GetConnectUrl(), bytes.NewReader(data))
+				if err != nil {
+					fmt.Println(err.Error())
+				}
+				resp, err := http.DefaultClient.Do(request)
+				if err != nil {
+					fmt.Println(err.Error())
+				}
+				if resp.StatusCode != 200 {
+					func(){
+						defer resp.Body.Close()
+						body, err := ioutil.ReadAll(resp.Body)
+						if err != nil {
+							fmt.Println(err.Error())
+						}
+						fmt.Println(string(body))
+					}()
+				}
+			}
+		}
 	}
 
 	for _, offer := range offers {
@@ -203,12 +253,47 @@ func (this *ElodinaTransportScheduler) Shutdown(driver scheduler.SchedulerDriver
 	fmt.Println("Shutting down the scheduler.")
 }
 
-func (this *ElodinaTransportScheduler) hasEnoughCpuAndMemory(cpusOffered float64, memoryOffered float64) bool {
-	return this.config.CpuPerTask <= cpusOffered && this.config.MemPerTask <= memoryOffered
+func (this *ElodinaTransportScheduler) launchNewTask(offers []OfferAndResources) (*mesos.Offer, *mesos.TaskInfo) {
+	for _, offer := range offers {
+		if this.hasEnoughCpuAndMemory(offer.RemainingCpu, offer.RemainingMemory) {
+			port := this.takePort(&offer.RemainingPorts)
+			taskPort := &mesos.Value_Range{Begin: port, End: port}
+			taskId := &mesos.TaskID{
+				Value: proto.String(fmt.Sprintf("elodina-mirror-%s-%d", *offer.Offer.Hostname, *port)),
+			}
+
+			task := &mesos.TaskInfo{
+				Name:     proto.String(taskId.GetValue()),
+				TaskId:   taskId,
+				SlaveId:  offer.Offer.SlaveId,
+				Executor: this.createExecutor(this.runningInstances, *port),
+				Resources: []*mesos.Resource{
+					util.NewScalarResource("cpus", float64(this.config.CpuPerTask)),
+					util.NewScalarResource("mem", float64(this.config.MemPerTask)),
+					util.NewRangesResource("ports", []*mesos.Value_Range{taskPort}),
+				},
+			}
+			fmt.Printf("Prepared task: %s with offer %s for launch. Ports: %s\n", task.GetName(), offer.Offer.Id.GetValue(), taskPort)
+			this.incRunningInstances()
+
+			transport := NewElodinaTransport(fmt.Sprintf("http://%s:%d/assign", *offer.Offer.Hostname, port), task, this.config.StaleDuration)
+			this.taskIdToTaskState[*taskId.Value] = transport
+
+			fmt.Printf("Prepared task: %s with offer %s for launch. Ports: %s\n", task.GetName(), offer.Offer.Id.GetValue(), taskPort)
+
+			offer.RemainingPorts = offer.RemainingPorts[1:]
+			offer.RemainingCpu -= this.config.CpuPerTask * float64(this.config.ThreadsPerTask)
+			offer.RemainingMemory -= this.config.MemPerTask * float64(this.config.ThreadsPerTask)
+
+			return offer.Offer, task
+		}
+	}
+
+	return nil, nil
 }
 
-func (this *ElodinaTransportScheduler) hasEnoughInstances() bool {
-	return this.config.Instances > int(this.runningInstances)
+func (this *ElodinaTransportScheduler) hasEnoughCpuAndMemory(cpusOffered float64, memoryOffered float64) bool {
+	return this.config.CpuPerTask * float64(this.config.ThreadsPerTask) <= cpusOffered && this.config.MemPerTask * float64(this.config.ThreadsPerTask) <= memoryOffered
 }
 
 func (this *ElodinaTransportScheduler) getRunningInstances() int32 {
@@ -268,68 +353,61 @@ func (this *ElodinaTransportScheduler) createExecutor(instanceId int32, port uin
 	}
 }
 
-func (this *ElodinaTransportScheduler) subscribeForChanges(group string) {
-	events, err := this.coordinator.SubscribeForChanges(group)
+func (this *ElodinaTransportScheduler) GetTopicPartitions() (*consumer.TopicAndPartitionSet, error) {
+	topicMetadata, err := this.kafkaClient.GetTopicMetadata(this.config.Topics)
 	if err != nil {
-		panic(err)
+		return nil, err
+	}
+	topicsAndPartitions := make([]consumer.TopicAndPartition, 0)
+	for _, topicMetadata := range topicMetadata.TopicsMetadata {
+		for _, partitionMetadata := range topicMetadata.PartitionsMetadata {
+			topicsAndPartitions = append(topicsAndPartitions, consumer.TopicAndPartition{
+				Topic:     topicMetadata.Topic,
+				Partition: partitionMetadata.PartitionID,
+			})
+		}
 	}
 
-	go func() {
-		for event := range events {
-			if event == kafka.Regular {
-				for _, transfer := range this.taskIdToTaskState {
-					this.toKill = append(this.toKill, transfer)
-				}
-			}
-		}
-	}()
+	tpSet := consumer.NewTopicAndPartitionSet()
+	tpSet.AddAll(topicsAndPartitions)
+
+	return tpSet, nil
 }
 
-func (this *ElodinaTransportScheduler) assignPartitions(transports []*ElodinaTransport) {
-	partitionsForTopics, err := this.coordinator.GetPartitionsForTopics(this.config.Topics)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to obtain partitions for topics: %s, topics: %v", err, this.config.Topics))
+func (this *ElodinaTransportScheduler) wrapInOfferAndResources(offers []*mesos.Offer) []OfferAndResources {
+	offerStates := make([]OfferAndResources, len(offers))
+	for i, offer := range offers {
+		offerStates[i] = NewOfferState(offer)
 	}
 
-	if len(transports) > 0 {
-		topicsAndPartitions := make([]*kafka.TopicAndPartition, 0)
-		for topic, partitions := range partitionsForTopics {
-			for _, partition := range partitions {
-				topicsAndPartitions = append(topicsAndPartitions, &kafka.TopicAndPartition{
-					Topic:     topic,
-					Partition: partition,
-				})
-			}
+	return offerStates
+}
+
+func (this *ElodinaTransportScheduler) hasEnoughInstances() bool {
+	for _, transfer := range this.taskIdToTaskState {
+		if len(transfer.assignment) < this.config.ThreadsPerTask {
+			return true
 		}
+	}
 
-		fmt.Printf("%v\n", topicsAndPartitions)
+	return false
+}
 
-		sort.Sort(hashArray(topicsAndPartitions))
-		tasksIterator := circularIterator(&transports)
-		for _, topicPartition := range topicsAndPartitions {
-			transport := *tasksIterator.Value.(*ElodinaTransport)
-			if _, ok := transport.assignment[topicPartition.Topic]; !ok {
-				transport.assignment[topicPartition.Topic] = make(map[int]*PartitionState)
-			}
-			if _, ok := transport.assignment[topicPartition.Topic][int(topicPartition.Partition)]; !ok {
-				transport.assignment[topicPartition.Topic][int(topicPartition.Partition)] = NewPartitionState(topicPartition.Topic, int(topicPartition.Partition))
-			}
+type OfferAndResources struct {
+	RemainingCpu    float64
+	RemainingMemory float64
+	RemainingPorts  []*mesos.Value_Range
+	Offer           *mesos.Offer
+}
 
-			tasksIterator = tasksIterator.Next()
-		}
+func NewOfferState(offer *mesos.Offer) OfferAndResources {
+	cpus := getScalarResources(offer, "cpus")
+	memory := getScalarResources(offer, "mem")
+	ports := getRangeResources(offer, "ports")
 
-		for _, transport := range transports {
-			this.config.transportConfig.Assignment = make(map[string][]int)
-			for topic, partitions := range transport.assignment {
-				for partition, _ := range partitions {
-					if _, ok := this.config.transportConfig.Assignment[topic]; !ok {
-						this.config.transportConfig.Assignment[topic] = make([]int, 0)
-					}
-					this.config.transportConfig.Assignment[topic] = append(this.config.transportConfig.Assignment[topic], partition)
-				}
-			}
-			configBlob, _ := json.Marshal(this.config.transportConfig)
-			transport.task.Executor.Data = configBlob
-		}
+	return OfferAndResources{
+		RemainingCpu:    cpus,
+		RemainingMemory: memory,
+		RemainingPorts:  ports,
 	}
 }

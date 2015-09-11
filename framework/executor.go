@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/elodina/syphon/consumer"
 	"github.com/mesos/mesos-go/executor"
@@ -13,7 +14,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-    "errors"
 )
 
 type HttpMirrorExecutor struct {
@@ -131,23 +131,23 @@ func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, mes
 	if err != nil {
 		return err
 	}
-    request, err := http.NewRequest("POST", this.targetURL, bytes.NewReader(encodedMessage))
-    if err != nil {
-        return err
-    }
+	request, err := http.NewRequest("POST", this.targetURL, bytes.NewReader(encodedMessage))
+	if err != nil {
+		return err
+	}
 	resp, err := this.httpsClient.Do(request)
-    if err != nil {
-        return err
-    }
-    if resp.StatusCode != 200 {
-        defer resp.Body.Close()
-        bodyData, err := ioutil.ReadAll(resp.Body)
-        if err != nil {
-            return err
-        }
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != 200 {
+		defer resp.Body.Close()
+		bodyData, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
 
-        return errors.New(string(bodyData))
-    }
+		return errors.New(string(bodyData))
+	}
 
 	return nil
 }

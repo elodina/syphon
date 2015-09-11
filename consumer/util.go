@@ -71,6 +71,10 @@ func (this *TopicAndPartitionSet) GetArray() []TopicAndPartition {
 	return result
 }
 
+func (this *TopicAndPartitionSet) IsEmpty() bool {
+	return len(this.internal) == 0
+}
+
 func inLock(lock *sync.Mutex, fun func()) {
 	lock.Lock()
 	defer lock.Unlock()
