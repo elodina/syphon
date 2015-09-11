@@ -146,7 +146,7 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 	remainingPartitions.RemoveAll(this.TakenTopicPartitions.GetArray())
 	tps := remainingPartitions.GetArray()
 	offersAndResources := this.wrapInOfferAndResources(offers)
-	for !remainingPartitions.IsEmpty {
+	for !remainingPartitions.IsEmpty() {
 		if this.hasEnoughInstances() {
 			for _, transfer := range this.taskIdToTaskState {
 				if len(transfer.assignment) < this.config.ThreadsPerTask {
