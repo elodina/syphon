@@ -45,6 +45,9 @@ type ElodinaTransportSchedulerConfig struct {
 
 	// Threads per task
 	ThreadsPerTask int
+
+	// Target produce URL
+	TargetURL string
 }
 
 func NewElodinaTransportSchedulerConfig() ElodinaTransportSchedulerConfig {
@@ -52,7 +55,7 @@ func NewElodinaTransportSchedulerConfig() ElodinaTransportSchedulerConfig {
 		CpuPerTask:      0.2,
 		MemPerTask:      256,
 		KillTaskRetries: 3,
-		ThreadsPerTask: 3,
+		ThreadsPerTask:  3,
 	}
 }
 
@@ -321,7 +324,8 @@ func (this *ElodinaTransportScheduler) createExecutor(instanceId int32, port uin
 		Name:       proto.String("Elodina Mirror Executor"),
 		Source:     proto.String("Elodina"),
 		Command: &mesos.CommandInfo{
-			Value: proto.String(fmt.Sprintf("./%s --port %d", this.config.ExecutorBinaryName, port)),
+			Value: proto.String(fmt.Sprintf("./%s --port %d --ssl.cert cert.pem --ssl.key key.pem --ssl.cacert cacert.pem --target.url %s",
+				this.config.ExecutorBinaryName, port, this.config.TargetURL)),
 			Uris: []*mesos.CommandInfo_URI{&mesos.CommandInfo_URI{
 				Value:   proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, this.config.ExecutorBinaryName)),
 				Extract: proto.Bool(true),
