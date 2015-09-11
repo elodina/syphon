@@ -32,9 +32,6 @@ type ElodinaTransportSchedulerConfig struct {
 	// Artifact server port.Will be used to fetch the executor.
 	ServicePort int
 
-	// Name of the executor archive file.
-	ExecutorArchiveName string
-
 	// Name of the executor binary file contained in the executor archive.
 	ExecutorBinaryName string
 
@@ -56,6 +53,7 @@ func NewElodinaTransportSchedulerConfig() ElodinaTransportSchedulerConfig {
 		CpuPerTask:      0.2,
 		MemPerTask:      256,
 		KillTaskRetries: 3,
+		ThreadsPerTask: 3,
 	}
 }
 
@@ -319,7 +317,6 @@ func (this *ElodinaTransportScheduler) takePort(ports *[]*mesos.Value_Range) *ui
 }
 
 func (this *ElodinaTransportScheduler) createExecutor(instanceId int32, port uint64) *mesos.ExecutorInfo {
-	path := strings.Split(this.config.ExecutorArchiveName, "/")
 	return &mesos.ExecutorInfo{
 		ExecutorId: util.NewExecutorID(fmt.Sprintf("elodina-mirror-%d", instanceId)),
 		Name:       proto.String("Elodina Mirror Executor"),
@@ -327,7 +324,7 @@ func (this *ElodinaTransportScheduler) createExecutor(instanceId int32, port uin
 		Command: &mesos.CommandInfo{
 			Value: proto.String(fmt.Sprintf("./%s --port %d", this.config.ExecutorBinaryName, port)),
 			Uris: []*mesos.CommandInfo_URI{&mesos.CommandInfo_URI{
-				Value:   proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, path[len(path)-1])),
+				Value:   proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, this.config.ExecutorBinaryName)),
 				Extract: proto.Bool(true),
 			}},
 		},
