@@ -46,7 +46,7 @@ func main() {
 	schedulerConfig.ServiceHost = *artifactServerHost
 	schedulerConfig.ServicePort = *artifactServerPort
 	schedulerConfig.ThreadsPerTask = *threadsPerTask
-    schedulerConfig.TargetURL = *targetUrl
+	schedulerConfig.TargetURL = *targetUrl
 	schedulerConfig.ConsumerConfig = mustReadConsumerConfig(*consumerConfigPath)
 
 	transportScheduler := framework.NewElodinaTransportScheduler(schedulerConfig)
@@ -93,6 +93,7 @@ func mustReadConsumerConfig(path string) consumer.PartitionConsumerConfig {
 
 	config.ClientID = cfgMap["client.id"]
 	config.BrokerList = strings.Split(cfgMap["broker.list"], ",")
+	fmt.Printf("%v\n", config.BrokerList)
 	commitOffsetBackoff, err := time.ParseDuration(cfgMap["commit.backoff"])
 	if err != nil {
 		panic(err)

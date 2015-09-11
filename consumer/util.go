@@ -33,7 +33,7 @@ func (this *TopicAndPartitionSet) Add(tp TopicAndPartition) bool {
 
 func (this *TopicAndPartitionSet) Remove(tp TopicAndPartition) bool {
 	exists := this.Contains(tp)
-	if !exists {
+	if exists {
 		delete(this.internal, tp)
 	}
 
