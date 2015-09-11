@@ -175,33 +175,7 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 		}
 	}
 
-	for _, transfer := range this.taskIdToTaskState {
-		if transfer.IsPending() {
-			data, err := json.Marshal(transfer.GetAssignment())
-			if err != nil {
-				fmt.Println(err.Error())
-			} else {
-				request, err := http.NewRequest("POST", transfer.GetConnectUrl(), bytes.NewReader(data))
-				if err != nil {
-					fmt.Println(err.Error())
-				}
-				resp, err := http.DefaultClient.Do(request)
-				if err != nil {
-					fmt.Println(err.Error())
-				}
-				if resp.StatusCode != 200 {
-					func(){
-						defer resp.Body.Close()
-						body, err := ioutil.ReadAll(resp.Body)
-						if err != nil {
-							fmt.Println(err.Error())
-						}
-						fmt.Println(string(body))
-					}()
-				}
-			}
-		}
-	}
+	this.assignPendingPartitions()
 
 	for _, offer := range offers {
 		tasks := offersAndTasks[offer]
@@ -214,6 +188,13 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 func (this *ElodinaTransportScheduler) StatusUpdate(driver scheduler.SchedulerDriver, status *mesos.TaskStatus) {
 	fmt.Printf("Status update from executor %s task %s on slave %s: %s\n",
 		*status.GetExecutorId().Value, status.GetState().String(), *status.GetSlaveId().Value, string(status.GetData()))
+	if status.GetState().Enum() == mesos.TaskState_TASK_RUNNING {
+		for _, transfer := range this.taskIdToTaskState {
+			if *transfer.task.Executor.ExecutorId.Value == *status.ExecutorId.Value {
+				transfer.pending = true
+			}
+		}
+	}
 }
 
 // mesos.Scheduler interface method.
@@ -391,6 +372,38 @@ func (this *ElodinaTransportScheduler) hasEnoughInstances() bool {
 	}
 
 	return false
+}
+
+func (this *ElodinaTransportScheduler) assignPendingPartitions() {
+	for _, transfer := range this.taskIdToTaskState {
+		if transfer.IsPending() {
+			data, err := json.Marshal(transfer.GetAssignment())
+			if err != nil {
+				fmt.Println(err.Error())
+			} else {
+				request, err := http.NewRequest("POST", transfer.GetConnectUrl(), bytes.NewReader(data))
+				if err != nil {
+					fmt.Println(err.Error())
+				}
+				resp, err := http.DefaultClient.Do(request)
+				if err != nil {
+					fmt.Println(err.Error())
+				}
+				if resp.StatusCode != 200 {
+					func(){
+						defer resp.Body.Close()
+						body, err := ioutil.ReadAll(resp.Body)
+						if err != nil {
+							fmt.Println(err.Error())
+						}
+						fmt.Println(string(body))
+					}()
+				} else {
+					transfer.pending = false
+				}
+			}
+		}
+	}
 }
 
 type OfferAndResources struct {
