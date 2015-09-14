@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/elodina/syphon/Godeps/_workspace/src/github.com/gorilla/mux"
+	"github.com/elodina/syphon/Godeps/_workspace/src/github.com/mesos/mesos-go/executor"
 	"github.com/elodina/syphon/consumer"
 	"github.com/elodina/syphon/framework"
-	"github.com/gorilla/mux"
-	"github.com/mesos/mesos-go/executor"
 	"log"
 	"net/http"
 )
