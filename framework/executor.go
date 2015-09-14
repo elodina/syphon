@@ -14,6 +14,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net"
+	"time"
 )
 
 type HttpMirrorExecutor struct {
@@ -47,7 +49,15 @@ func NewHttpMirrorExecutor(apiKey, apiUser, certFile, keyFile, caFile, targetURL
 	}
 	tlsConfig.BuildNameToCertificate()
 	tlsConfig.InsecureSkipVerify = insecure
-	transport := &http.Transport{TLSClientConfig: tlsConfig}
+	transport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+		Proxy: http.ProxyFromEnvironment,
+		Dial: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: time.Minute,
+		}).Dial,
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
 	httpsClient := &http.Client{Transport: transport}
 
 	return &HttpMirrorExecutor{
