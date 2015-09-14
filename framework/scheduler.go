@@ -346,7 +346,6 @@ func (this *ElodinaTransportScheduler) createExecutor(instanceId int, port uint6
 					Executable: proto.Bool(false),
 					Extract:    proto.Bool(false),
 				}},
-			User: proto.String("stealthly"),
 		},
 	}
 }
