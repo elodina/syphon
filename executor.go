@@ -12,7 +12,10 @@ import (
 	"net/http"
 )
 
+var apiKey = flag.String("api.key", "", "Elodina API key")
+var apiUser = flag.String("api.user", "", "Elodina API user")
 var certFile = flag.String("ssl.cert", "", "SSL certificate file path.")
+var insecure = flag.Bool("insecure", false, "Disable certificate verification")
 var keyFile = flag.String("ssl.key", "", "SSL private key file path.")
 var caFile = flag.String("ssl.cacert", "", "Certifying Authority SSL Certificate file path.")
 var targetUrl = flag.String("target.url", "", "Target URL.")
@@ -21,7 +24,7 @@ var port = flag.Int("port", 8989, "Port to bind to")
 func main() {
 	flag.Parse()
 	fmt.Println("Starting Elodina Executor")
-	httpMirrorExecutor := framework.NewHttpMirrorExecutor(*certFile, *keyFile, *caFile, *targetUrl)
+	httpMirrorExecutor := framework.NewHttpMirrorExecutor(*apiKey, *apiUser, *certFile, *keyFile, *caFile, *targetUrl, *insecure)
 	driverConfig := executor.DriverConfig{
 		Executor: httpMirrorExecutor,
 	}

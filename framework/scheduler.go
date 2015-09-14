@@ -56,6 +56,15 @@ type ElodinaTransportSchedulerConfig struct {
 
 	//SSL CA certificate file path
 	SSLCACertFilePath string
+
+	//Elodina API key
+	ApiKey string
+
+	//Elodina API user
+	ApiUser string
+
+	//Disable certificate verification
+	Insecure bool
 }
 
 func NewElodinaTransportSchedulerConfig() ElodinaTransportSchedulerConfig {
@@ -316,26 +325,26 @@ func (this *ElodinaTransportScheduler) createExecutor(instanceId int, port uint6
 		Name:       proto.String("Elodina Mirror Executor"),
 		Source:     proto.String("Elodina"),
 		Command: &mesos.CommandInfo{
-			Value: proto.String(fmt.Sprintf("./%s --port %d --ssl.cert %s --ssl.key %s --ssl.cacert %s --target.url %s",
-				this.config.ExecutorBinaryName, port, this.config.SSLCertFilePath, this.config.SSLKeyFilePath, this.config.SSLCACertFilePath, this.config.TargetURL)),
+			Value: proto.String(fmt.Sprintf("./%s --port %d --ssl.cert %s --ssl.key %s --ssl.cacert %s --api.key %s --api.user %s --target.url %s --insecure %v",
+				this.config.ExecutorBinaryName, port, this.config.SSLCertFilePath, this.config.SSLKeyFilePath, this.config.SSLCACertFilePath, this.config.ApiKey, this.config.ApiUser, this.config.TargetURL, this.config.Insecure)),
 			Uris: []*mesos.CommandInfo_URI{&mesos.CommandInfo_URI{
 				Value:      proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, this.config.ExecutorBinaryName)),
 				Executable: proto.Bool(true),
 			},
 				&mesos.CommandInfo_URI{
-					Value: proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, this.config.SSLCertFilePath)),
+					Value:      proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, this.config.SSLCertFilePath)),
 					Executable: proto.Bool(false),
-					Extract: proto.Bool(false),
+					Extract:    proto.Bool(false),
 				},
 				&mesos.CommandInfo_URI{
-					Value: proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, this.config.SSLKeyFilePath)),
+					Value:      proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, this.config.SSLKeyFilePath)),
 					Executable: proto.Bool(false),
-					Extract: proto.Bool(false),
+					Extract:    proto.Bool(false),
 				},
 				&mesos.CommandInfo_URI{
-					Value: proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, this.config.SSLCACertFilePath)),
+					Value:      proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, this.config.SSLCACertFilePath)),
 					Executable: proto.Bool(false),
-					Extract: proto.Bool(false),
+					Extract:    proto.Bool(false),
 				}},
 			User: proto.String("stealthly"),
 		},

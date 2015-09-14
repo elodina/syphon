@@ -18,12 +18,14 @@ import (
 
 type HttpMirrorExecutor struct {
 	partitionConsumer *consumer.PartitionConsumer
+	apiKey            string
+	apiUser           string
 	httpsClient       *http.Client
 	targetURL         string
 }
 
 // Creates a new HttpMirrorExecutor with a given config.
-func NewHttpMirrorExecutor(certFile, keyFile, caFile, targetURL string) *HttpMirrorExecutor {
+func NewHttpMirrorExecutor(apiKey, apiUser, certFile, keyFile, caFile, targetURL string, insecure bool) *HttpMirrorExecutor {
 	// Load client cert
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
@@ -33,7 +35,7 @@ func NewHttpMirrorExecutor(certFile, keyFile, caFile, targetURL string) *HttpMir
 	// Load CA cert
 	caCert, err := ioutil.ReadFile(caFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error loading CA certificate: %s", err.Error())
 	}
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)
@@ -44,12 +46,15 @@ func NewHttpMirrorExecutor(certFile, keyFile, caFile, targetURL string) *HttpMir
 		RootCAs:      caCertPool,
 	}
 	tlsConfig.BuildNameToCertificate()
+	tlsConfig.InsecureSkipVerify = insecure
 	transport := &http.Transport{TLSClientConfig: tlsConfig}
 	httpsClient := &http.Client{Transport: transport}
 
 	return &HttpMirrorExecutor{
 		httpsClient: httpsClient,
 		targetURL:   targetURL,
+		apiKey:      apiKey,
+		apiUser:     apiUser,
 	}
 }
 
@@ -82,8 +87,10 @@ func (this *HttpMirrorExecutor) LaunchTask(driver executor.ExecutorDriver, taskI
 		State:  mesos.TaskState_TASK_RUNNING.Enum(),
 	}
 
+	fmt.Println(string(taskInfo.Data))
 	config := &consumer.PartitionConsumerConfig{}
 	json.Unmarshal(taskInfo.Data, config)
+	fmt.Printf("%v\n", config)
 	this.partitionConsumer = consumer.NewPartitionConsumer(*config)
 
 	if _, err := driver.SendStatusUpdate(runStatus); err != nil {
@@ -127,11 +134,15 @@ func (this *HttpMirrorExecutor) Assign(tps []consumer.TopicAndPartition) {
 }
 
 func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, messages []*siesta.MessageAndOffset) error {
+	fmt.Printf("Trying to send message: %s, %d, %s\n", topic, partition, string(messages[0].Message.Value))
 	encodedMessage, err := json.Marshal(EncodeMessage(topic, partition, messages))
 	if err != nil {
 		return err
 	}
 	request, err := http.NewRequest("POST", this.targetURL, bytes.NewReader(encodedMessage))
+	request.Header.Add("X-Api-Key", this.apiKey)
+	request.Header.Add("X-Api-User", this.apiUser)
+
 	if err != nil {
 		return err
 	}
@@ -153,9 +164,9 @@ func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, mes
 }
 
 type TransferMessage struct {
-	Topic     string
-	Partition int32
-	Data      []byte
+	Topic     string `json:"topic"`
+	Partition int32  `json:"partition"`
+	Data      []byte `json:"data"`
 }
 
 func EncodeMessage(topic string, partition int32, messages []*siesta.MessageAndOffset) []*TransferMessage {

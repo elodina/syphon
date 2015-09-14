@@ -144,7 +144,7 @@ func NewPartitionConsumer(consumerConfig PartitionConsumerConfig) *PartitionCons
 							if offsetToCommit > fetcherState.LastCommitted {
 								err := consumer.kafkaClient.CommitOffset(consumer.config.Group, topic, partition, offsetToCommit)
 								if err != nil {
-									fmt.Println(err.Error())
+									fmt.Printf("Failed to commit offset: %s\n", err.Error())
 								}
 							}
 							if fetcherState.Removed {
@@ -166,6 +166,7 @@ func NewPartitionConsumer(consumerConfig PartitionConsumerConfig) *PartitionCons
 }
 
 func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strategy) error {
+	fmt.Printf("Adding new topic partition: %s, %d\n", topic, partition)
 	if _, exists := this.fetchers[topic]; !exists {
 		this.fetchers[topic] = make(map[int32]*FetcherState)
 	}
@@ -176,9 +177,9 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 				offset, err := this.kafkaClient.GetOffset(this.config.Group, topic, partition)
 				if err != nil {
 					//It's not critical, since offsets have not been committed yet
-					fmt.Println(err.Error())
+					fmt.Printf("Error fetching topic metadata: %s\n", err.Error())
 				}
-				fetcherState := NewFetcherState(offset)
+				fetcherState = NewFetcherState(offset)
 				this.fetchers[topic][partition] = fetcherState
 			} else {
 				this.fetchers[topic][partition].Removed = false
@@ -212,7 +213,7 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 
 					err = strategy(topic, partition, response.Data[topic][partition].Messages)
 					if err != nil {
-						fmt.Println(err.Error())
+						fmt.Printf("Strategy error: %s\n", err.Error())
 					}
 
 					offsetIndex := len(response.Data[topic][partition].Messages) - 1

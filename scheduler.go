@@ -29,6 +29,9 @@ var consumerConfigPath = flag.String("consumer.config", "consumer.properties", "
 var certFile = flag.String("ssl.cert", "", "SSL certificate file path.")
 var keyFile = flag.String("ssl.key", "", "SSL private key file path.")
 var caFile = flag.String("ssl.cacert", "", "Certifying Authority SSL Certificate file path.")
+var apiKey = flag.String("api.key", "", "Elodina API key")
+var apiUser = flag.String("api.user", "", "Elodina API user")
+var insecure = flag.Bool("insecure", false, "Disable certificate verification")
 
 func main() {
 	flag.Parse()
@@ -53,6 +56,9 @@ func main() {
 	schedulerConfig.SSLCertFilePath = *certFile
 	schedulerConfig.SSLKeyFilePath = *keyFile
 	schedulerConfig.SSLCACertFilePath = *caFile
+	schedulerConfig.ApiKey = *apiKey
+	schedulerConfig.ApiUser = *apiUser
+	schedulerConfig.Insecure = *insecure
 	schedulerConfig.ConsumerConfig = mustReadConsumerConfig(*consumerConfigPath)
 
 	transportScheduler := framework.NewElodinaTransportScheduler(schedulerConfig)
@@ -97,6 +103,7 @@ func mustReadConsumerConfig(path string) consumer.PartitionConsumerConfig {
 		panic(err)
 	}
 
+	config.Group = cfgMap["group"]
 	config.ClientID = cfgMap["client.id"]
 	config.BrokerList = strings.Split(cfgMap["broker.list"], ",")
 	fmt.Printf("%v\n", config.BrokerList)
