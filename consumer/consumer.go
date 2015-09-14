@@ -2,7 +2,7 @@ package consumer
 
 import (
 	"fmt"
-	"github.com/elodina/syphon/consumer/Godeps/_workspace/src/github.com/stealthly/siesta"
+	"github.com/stealthly/siesta"
 	"sync"
 	"sync/atomic"
 	"time"

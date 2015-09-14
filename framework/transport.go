@@ -1,8 +1,8 @@
 package framework
 
 import (
-	"github.com/elodina/syphon/framework/Godeps/_workspace/src/github.com/elodina/syphon/consumer"
-	mesos "github.com/elodina/syphon/framework/Godeps/_workspace/src/github.com/mesos/mesos-go/mesosproto"
+	"github.com/elodina/syphon/consumer"
+	mesos "github.com/mesos/mesos-go/mesosproto"
 	"time"
 )
 
