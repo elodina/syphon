@@ -240,14 +240,13 @@ func (this *ElodinaTransportScheduler) Shutdown(driver scheduler.SchedulerDriver
 }
 
 func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources) (*mesos.Offer, *mesos.TaskInfo) {
-	fmt.Println(len(offers))
 	for _, offer := range offers {
 		configBlob, err := json.Marshal(this.config.ConsumerConfig)
 		if err != nil {
 			break
 		}
 		fmt.Printf("%v\n", offer)
-		if this.hasEnoughCpuAndMemory(offer.RemainingCpu, offer.RemainingMemory) {
+		if this.hasEnoughResources(offer) {
 			port := this.takePort(&offer.RemainingPorts)
 			taskPort := &mesos.Value_Range{Begin: port, End: port}
 			taskId := &mesos.TaskID{
@@ -286,8 +285,10 @@ func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources
 	return nil, nil
 }
 
-func (this *ElodinaTransportScheduler) hasEnoughCpuAndMemory(cpusOffered float64, memoryOffered float64) bool {
-	return this.config.CpuPerTask*float64(this.config.ThreadsPerTask) <= cpusOffered && this.config.MemPerTask*float64(this.config.ThreadsPerTask) <= memoryOffered
+func (this *ElodinaTransportScheduler) hasEnoughResources(offer *OfferAndResources) bool {
+	return this.config.CpuPerTask*float64(this.config.ThreadsPerTask) <= offer.RemainingCpu &&
+		this.config.MemPerTask*float64(this.config.ThreadsPerTask) <= offer.RemainingMemory &&
+		len(offer.RemainingPorts) > 0
 }
 
 func (this *ElodinaTransportScheduler) tryKillTask(driver scheduler.SchedulerDriver, taskId *mesos.TaskID) error {
