@@ -3,9 +3,9 @@ package framework
 import (
 	"container/ring"
 	"fmt"
-	mesos "github.com/mesos/mesos-go/mesosproto"
-	util "github.com/mesos/mesos-go/mesosutil"
-	kafka "github.com/stealthly/go_kafka_client"
+	mesos "github.com/elodina/syphon/framework/Godeps/_workspace/src/github.com/mesos/mesos-go/mesosproto"
+	util "github.com/elodina/syphon/framework/Godeps/_workspace/src/github.com/mesos/mesos-go/mesosutil"
+	kafka "github.com/elodina/syphon/framework/Godeps/_workspace/src/github.com/stealthly/go_kafka_client"
 	"hash/fnv"
 	"reflect"
 )
