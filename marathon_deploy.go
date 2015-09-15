@@ -9,6 +9,7 @@ import (
     "time"
 )
 
+var dockerRegistryUrl = flag.String("docker.registry.url", "master:5000", "Docker registry address <ip:port>.")
 var master = flag.String("master", "127.0.0.1:5050", "Mesos Master address <ip:port>.")
 var topics = flag.String("topics", "", "Comma-separated list of topics")
 var threadsPerTask = flag.Int("task.threads", 3, "Max threads per task.")
@@ -48,7 +49,7 @@ func main() {
             Container: &marathon.Container{
                 Type: "DOCKER",
                 Docker: &marathon.Docker{
-                    Image: "elodina/syphon",
+                    Image: fmt.Sprintf("%s/elodina/syphon", *dockerRegistryUrl),
                     Network: "BRIDGE",
                     PortMappings: []*marathon.PortMapping{
                         &marathon.PortMapping{
