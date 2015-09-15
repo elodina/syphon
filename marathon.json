@@ -1,0 +1,35 @@
+{
+  "id": "/syphon",
+  "instances": 3,
+  "container": {
+    "type": "DOCKER",
+    "docker": {
+      "image": "elodina/syphon",
+      "network": "BRIDGE",
+      "portMappings": [
+        {
+          "containerPort": 8888,
+          "hostPort": 8888,
+          "protocol": "tcp"
+        }
+      ]
+    }
+  },
+  "healthChecks": [
+    {
+      "protocol": "HTTP",
+      "path": "/health",
+      "gracePeriodSeconds": 600,
+      "intervalSeconds": 30,
+      "portIndex": 0,
+      "timeoutSeconds": 10,
+      "maxConsecutiveFailures": 2
+    }
+  ],
+  "cmd": "./scheduler --master ${MASTER_URL} --topics ${KAFKA_TOPICS} --task.threads ${TASK_THREADS} --artifacts.host ${ARTIFACT_SERVER_HOST} --artifacts.port ${ARTIFACT_SERVER_PORT} --cpu.per.task 0.1 --mem.per.task 128 --ssl.cert ${CLIENT_SSL_CERTIFICATE} --ssl.key ${CLIENT_SSL_KEY} --ssl.cacert ${SERVER_CERTIFICATE} --consumer.config ${CONSUMER_PROPERTIES_FILE} --target.url ${ELODINA_HTTP_ENDPOINT} --api.key ${ELODINA_API_KEY} --api.user ${ELODINA_API_USER}",
+  "ports": [
+    8888
+  ],
+  "cpus": 0.25,
+  "mem": 256
+}

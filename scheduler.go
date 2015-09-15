@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"io"
 )
 
 var master = flag.String("master", "127.0.0.1:5050", "Mesos Master address <ip:port>.")
@@ -93,6 +94,10 @@ func startArtifactServer() {
 		fmt.Println("Serving ", resource)
 		http.ServeFile(w, r, resource)
 	})
+	http.HandleFunc(fmt.Sprintf("/health"), func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "OK")
+	})
+
 	http.ListenAndServe(fmt.Sprintf("%s:%d", *artifactServerHost, *artifactServerPort), nil)
 }
 
