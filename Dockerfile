@@ -15,13 +15,21 @@ RUN sudo apt-get update
 RUN sudo apt-get -y install git
 RUN sudo apt-get -y install mercurial
 
+#Install wget
+RUN sudo apt-get -y install wget
+
 #Get Go
 RUN wget -q $GOLANG_URL -O /tmp/$GOLANG_RELEASE.tar.gz
 RUN tar -xzf /tmp/$GOLANG_RELEASE.tar.gz -C /usr/bin
 RUN mkdir -p $GOPATH/src
 
 #Get GPM and GVP
+RUN apt-get -y install build-essential
 RUN git clone https://github.com/pote/gpm.git && cd gpm && git checkout v1.3.1 && ./configure && make install
+RUN git clone https://github.com/pote/gvp.git && cd gvp && git checkout v0.2.1 && ./configure && make install
 
 #Get Syphon
-RUN git clone https://github.com/elodina/syphon.git && cd syphon && ./build.sh && ln -s $(pwd)/scheduler /usr/bin && ln -s $(pwd)/executor /usr/bin
+RUN git clone https://github.com/elodina/syphon.git && cd syphon && ./build.sh
+
+#Setting working directory
+WORKDIR /syphon
