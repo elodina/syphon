@@ -28,8 +28,10 @@ RUN apt-get -y install build-essential
 RUN git clone https://github.com/pote/gpm.git && cd gpm && git checkout v1.3.1 && ./configure && make install
 RUN git clone https://github.com/pote/gvp.git && cd gvp && git checkout v0.2.1 && ./configure && make install
 
-#Get Syphon
-RUN git clone https://github.com/elodina/syphon.git && cd syphon && ./build.sh
+ADD . /syphon
+
+#Build Syphon
+RUN cd syphon && ./build.sh
 
 #Setting working directory
 WORKDIR /syphon
