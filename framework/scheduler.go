@@ -253,14 +253,16 @@ func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources
 				Value: proto.String(fmt.Sprintf("elodina-mirror-%s-%d", *offer.Offer.Hostname, *port)),
 			}
 
+            cpuTaken := this.config.CpuPerTask * float64(this.config.ThreadsPerTask)
+            memoryTaken := this.config.MemPerTask * float64(this.config.ThreadsPerTask)
 			task := &mesos.TaskInfo{
 				Name:     proto.String(taskId.GetValue()),
 				TaskId:   taskId,
 				SlaveId:  offer.Offer.SlaveId,
 				Executor: this.createExecutor(len(this.taskIdToTaskState), *port),
 				Resources: []*mesos.Resource{
-					util.NewScalarResource("cpus", float64(this.config.CpuPerTask)),
-					util.NewScalarResource("mem", float64(this.config.MemPerTask)),
+					util.NewScalarResource("cpus", cpuTaken),
+					util.NewScalarResource("mem", memoryTaken),
 					util.NewRangesResource("ports", []*mesos.Value_Range{taskPort}),
 				},
 				Data: configBlob,
@@ -273,8 +275,8 @@ func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources
 			fmt.Printf("Prepared task: %s with offer %s for launch. Ports: %s\n", task.GetName(), offer.Offer.Id.GetValue(), taskPort)
 
 			offer.RemainingPorts = offer.RemainingPorts[1:]
-			offer.RemainingCpu -= this.config.CpuPerTask * float64(this.config.ThreadsPerTask)
-			offer.RemainingMemory -= this.config.MemPerTask * float64(this.config.ThreadsPerTask)
+			offer.RemainingCpu -= cpuTaken
+			offer.RemainingMemory -= memoryTaken
 
 			return offer.Offer, task
 		} else {
