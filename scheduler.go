@@ -22,6 +22,7 @@ var master = flag.String("master", "127.0.0.1:5050", "Mesos Master address <ip:p
 var topics = flag.String("topics", "", "Comma-separated list of topics")
 var threadsPerTask = flag.Int("task.threads", 3, "Max threads per task.")
 var artifactServerListen = flag.String("listen", "0.0.0.0:8888", "Bootstrap host:port for artifact server.")
+var user = flag.String("user", "", "User for running the framework")
 var artifactServerHost = flag.String("artifacts.host", "0.0.0.0", "Host for artifact server.")
 var artifactServerPort = flag.Int("artifacts.port", 8888, "Binding port for artifact server.")
 var cpuPerTask = flag.Float64("cpu.per.task", 0.2, "CPUs per task.")
@@ -42,7 +43,7 @@ func main() {
 	signal.Notify(ctrlc, os.Interrupt)
 
 	frameworkInfo := &mesosproto.FrameworkInfo{
-		User: proto.String(""),
+		User: proto.String(*user),
 		Name: proto.String("Syphon Framework"),
 	}
 
