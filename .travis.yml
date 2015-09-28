@@ -8,3 +8,7 @@ before_install:
 - go get github.com/tools/godep
 
 install: ./build.sh
+
+script:
+
+after_script:
