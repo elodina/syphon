@@ -10,5 +10,7 @@ before_install:
 install: ./build.sh
 
 script:
+- cd consumer && go test -v && cd ../
+- cd framework && go test -v && cd ../
 
 after_script:
