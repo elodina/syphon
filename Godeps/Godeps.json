@@ -108,12 +108,10 @@
       "Rev": "db8e4de5b2d6653f66aea53094624468caad15d2"
     },
     {
-      "ImportPath": "github.com/elodina/syphon/consumer",
-      "Rev": "e8ee874ae5c4cb50a5fd8f264fbcbedce3d0e8e3"
+      "ImportPath": "github.com/elodina/syphon/consumer"
     },
 	{
-	  "ImportPath": "github.com/elodina/syphon/framework",
-	  "Rev": "e8ee874ae5c4cb50a5fd8f264fbcbedce3d0e8e3"
+	  "ImportPath": "github.com/elodina/syphon/framework"
 	}
   ]
 }
