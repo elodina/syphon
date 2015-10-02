@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/elodina/syphon.svg?branch=master)](https://travis-ci.org/elodina/syphon)
 
 ### Prerequisites
-In order to build this project you need to have [GPM](https://github.com/pote/gpm) and [GVP](https://github.com/pote/gvp) installed
+In order to build this project you need to have [Godep](https://github.com/tools/godep) installed
 
 ### Build instructions
 ```sh
