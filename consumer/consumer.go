@@ -2,10 +2,11 @@ package consumer
 
 import (
 	"fmt"
-	"github.com/stealthly/siesta"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/stealthly/siesta"
 )
 
 type PartitionConsumer struct {
@@ -168,36 +169,45 @@ func NewPartitionConsumer(consumerConfig PartitionConsumerConfig) *PartitionCons
 func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strategy) error {
 	fmt.Printf("Adding new topic partition: %s, %d\n", topic, partition)
 	if _, exists := this.fetchers[topic]; !exists {
+		fmt.Printf("Creating partition hash this.fetchers[%s]\n", topic)
 		this.fetchers[topic] = make(map[int32]*FetcherState)
 	}
 	var fetcherState *FetcherState
 	inLock(&this.fetchersLock, func() {
+		fmt.Println("We are in lock!")
 		if _, exists := this.fetchers[topic][partition]; !exists || this.fetchers[topic][partition].Removed {
+			fmt.Printf("Not exists or removed (%s)", exists)
 			if !exists {
+				fmt.Println("Not exists! Getting offset from kafka...")
 				offset, err := this.kafkaClient.GetOffset(this.config.Group, topic, partition)
+				fmt.Printf("Offset received: %d\n", offset)
 				if err != nil {
 					//It's not critical, since offsets have not been committed yet
 					fmt.Printf("Error fetching topic metadata: %s\n", err.Error())
 				}
 				fetcherState = NewFetcherState(offset)
+				fmt.Printf("Fetcher state received: %v\n", fetcherState)
 				this.fetchers[topic][partition] = fetcherState
 			} else {
+				fmt.Println("Was Removed, now setting Removed to false")
 				this.fetchers[topic][partition].Removed = false
 			}
 		}
 	})
 
 	if fetcherState == nil {
+		fmt.Println("Fetcher state is nil! Yikes! Returning...")
 		return nil
 	}
 
 	go func() {
+		fmt.Printf("Start fetching cycle for %s, %d\n", topic, partition)
 		for {
 			response, err := this.kafkaClient.Fetch(topic, partition, fetcherState.GetOffset()+1)
-            if err != nil {
-                fmt.Printf("Kafka error: %s",  err.Error())
-                continue
-            }
+			if err != nil {
+				fmt.Printf("Kafka error: %s", err.Error())
+				continue
+			}
 
 			select {
 			case fetcherState.Removed = <-fetcherState.stopChannel:
@@ -216,6 +226,7 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 						continue
 					}
 
+					fmt.Printf("Sending messages to strategy %s, %d, %v\n", topic, partition, response.Data[topic][partition].Messages)
 					err = strategy(topic, partition, response.Data[topic][partition].Messages)
 					if err != nil {
 						fmt.Printf("Strategy error: %s\n", err.Error())
