@@ -194,6 +194,10 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 	go func() {
 		for {
 			response, err := this.kafkaClient.Fetch(topic, partition, fetcherState.GetOffset()+1)
+            if err != nil {
+                fmt.Printf("Kafka error: %s",  err.Error())
+            }
+
 			select {
 			case fetcherState.Removed = <-fetcherState.stopChannel:
 				{
