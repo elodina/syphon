@@ -189,7 +189,7 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 		if tasks, ok := offersAndTasks[offer]; ok {
             driver.LaunchTasks([]*mesos.OfferID{offer.Id}, tasks, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
         } else {
-            driver.DeclineOffer([]*mesos.OfferID{offer.Id}, &mesos.Filters{RefuseSeconds: proto.Float64(10)})
+            driver.DeclineOffer(offer.Id, &mesos.Filters{RefuseSeconds: proto.Float64(10)})
         }
 	}
 }
