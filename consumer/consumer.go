@@ -205,13 +205,14 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 		for {
 			response, err := this.kafkaClient.Fetch(topic, partition, fetcherState.GetOffset()+1)
 			if err != nil {
-				fmt.Printf("Kafka error: %s", err.Error())
+				fmt.Printf("Kafka error: %s\n", err.Error())
 				continue
 			}
 
 			select {
 			case fetcherState.Removed = <-fetcherState.stopChannel:
 				{
+					fmt.Printf("Stop fetching cycle for %s, %d\n", topic, partition)
 					break
 				}
 			default:
