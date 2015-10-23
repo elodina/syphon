@@ -163,12 +163,15 @@ func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, mes
 	if resp.StatusCode != 200 {
 		defer resp.Body.Close()
 		bodyData, err := ioutil.ReadAll(resp.Body)
+        fmt.Printf("Status code %d, Error: %s\n", resp.StatusCode, err.Error())
 		if err != nil {
 			return err
 		}
 
 		return errors.New(string(bodyData))
 	}
+
+    fmt.Println("mirrored")
 
 	return nil
 }
