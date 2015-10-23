@@ -147,13 +147,13 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 	if err != nil {
 		return
 	}
-	fmt.Printf("%v\n", remainingPartitions)
+    remainingPartitions.RemoveAll(this.TakenTopicPartitions.GetArray())
+    fmt.Printf("%v\n", remainingPartitions)
+    tps := remainingPartitions.GetArray()
 
-	remainingPartitions.RemoveAll(this.TakenTopicPartitions.GetArray())
-	tps := remainingPartitions.GetArray()
-	offersAndResources := this.wrapInOfferAndResources(offers)
-	fmt.Printf("%v\n", tps)
+    offersAndResources := this.wrapInOfferAndResources(offers)
 	for !remainingPartitions.IsEmpty() {
+        fmt.Printf("Iteration %v\n", remainingPartitions)
 		if this.hasEnoughInstances() {
 			for _, transfer := range this.taskIdToTaskState {
 				if len(transfer.assignment) < this.config.ThreadsPerTask {
@@ -186,8 +186,11 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 	this.assignPendingPartitions()
 
 	for _, offer := range offers {
-		tasks := offersAndTasks[offer]
-		driver.LaunchTasks([]*mesos.OfferID{offer.Id}, tasks, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
+		if tasks, ok := offersAndTasks[offer]; ok {
+            driver.LaunchTasks([]*mesos.OfferID{offer.Id}, tasks, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
+        } else {
+            driver.DeclineOffer(offer.Id, &mesos.Filters{RefuseSeconds: proto.Float64(10)})
+        }
 	}
 }
 
