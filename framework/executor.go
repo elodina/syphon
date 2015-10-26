@@ -7,15 +7,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"net"
+	"net/http"
+	"time"
+
 	"github.com/elodina/syphon/consumer"
 	"github.com/mesos/mesos-go/executor"
 	mesos "github.com/mesos/mesos-go/mesosproto"
 	"github.com/stealthly/siesta"
-	"io/ioutil"
-	"log"
-	"net/http"
-	"net"
-	"time"
 )
 
 type HttpMirrorExecutor struct {
@@ -51,7 +52,7 @@ func NewHttpMirrorExecutor(apiKey, apiUser, certFile, keyFile, caFile, targetURL
 	tlsConfig.InsecureSkipVerify = insecure
 	transport := &http.Transport{
 		TLSClientConfig: tlsConfig,
-		Proxy: http.ProxyFromEnvironment,
+		Proxy:           http.ProxyFromEnvironment,
 		Dial: (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: time.Minute,
@@ -162,11 +163,11 @@ func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, mes
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	fmt.Println("Sent request")
 	if resp.StatusCode != 200 {
-		defer resp.Body.Close()
 		bodyData, err := ioutil.ReadAll(resp.Body)
-        fmt.Printf("Status code %d, Error: %s\n", resp.StatusCode, err.Error())
+		fmt.Printf("Status code %d, Error: %s\n", resp.StatusCode, err.Error())
 		if err != nil {
 			return err
 		}
@@ -174,7 +175,7 @@ func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, mes
 		return errors.New(string(bodyData))
 	}
 
-    fmt.Println("mirrored")
+	fmt.Println("mirrored")
 
 	return nil
 }
