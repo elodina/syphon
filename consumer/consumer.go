@@ -184,6 +184,11 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 				if err != nil {
 					//It's not critical, since offsets have not been committed yet
 					fmt.Printf("Error fetching topic metadata: %s\n", err.Error())
+
+					offset, err = this.kafkaClient.GetAvailableOffset(topic, partition, siesta.EarliestTime)
+					if err != nil {
+						fmt.Printf("Error getting available offset for topic %s, partition %d: %s\n", topic, partition, err.Error())
+					}
 				}
 				fetcherState = NewFetcherState(offset)
 				fmt.Printf("Fetcher state received: %v\n", fetcherState)
@@ -223,11 +228,20 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 					if _, exists := response.Data[topic][partition]; !exists {
 						continue
 					}
-					if response.Data[topic][partition].Error != siesta.ErrNoError {
-						fmt.Printf("Got error for topic %s and partition %d: %s", topic, partition, response.Data[topic][partition].Error)
+					err = response.Data[topic][partition].Error
+					if err != siesta.ErrNoError {
+						fmt.Printf("Got error for topic %s and partition %d: %s", topic, partition, err)
+						if err == siesta.ErrOffsetOutOfRange {
+							offset, err := this.kafkaClient.GetAvailableOffset(topic, partition, siesta.EarliestTime)
+							if err != nil {
+								fmt.Printf("Error getting available offset for topic %s, partition %d: %s\n", topic, partition, err.Error())
+							} else {
+								fetcherState.SetOffset(offset)
+							}
+						}
 						continue
 					}
-					
+
 					if len(response.Data[topic][partition].Messages) == 0 {
 						continue
 					}
