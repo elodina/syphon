@@ -4,15 +4,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"time"
+
 	"github.com/elodina/syphon/consumer"
 	"github.com/golang/protobuf/proto"
 	mesos "github.com/mesos/mesos-go/mesosproto"
 	util "github.com/mesos/mesos-go/mesosutil"
 	"github.com/mesos/mesos-go/scheduler"
 	"github.com/stealthly/siesta"
-	"io/ioutil"
-	"net/http"
-	"time"
 )
 
 type ElodinaTransportSchedulerConfig struct {
@@ -147,13 +148,13 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 	if err != nil {
 		return
 	}
-    remainingPartitions.RemoveAll(this.TakenTopicPartitions.GetArray())
-    fmt.Printf("%v\n", remainingPartitions)
-    tps := remainingPartitions.GetArray()
+	remainingPartitions.RemoveAll(this.TakenTopicPartitions.GetArray())
+	fmt.Printf("%v\n", remainingPartitions)
+	tps := remainingPartitions.GetArray()
 
-    offersAndResources := this.wrapInOfferAndResources(offers)
+	offersAndResources := this.wrapInOfferAndResources(offers)
 	for !remainingPartitions.IsEmpty() {
-        fmt.Printf("Iteration %v\n", remainingPartitions)
+		fmt.Printf("Iteration %v\n", remainingPartitions)
 		if this.hasEnoughInstances() {
 			for _, transfer := range this.taskIdToTaskState {
 				if len(transfer.assignment) < this.config.ThreadsPerTask {
@@ -187,10 +188,10 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 
 	for _, offer := range offers {
 		if tasks, ok := offersAndTasks[offer]; ok {
-            driver.LaunchTasks([]*mesos.OfferID{offer.Id}, tasks, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
-        } else {
-            driver.DeclineOffer(offer.Id, &mesos.Filters{RefuseSeconds: proto.Float64(10)})
-        }
+			driver.LaunchTasks([]*mesos.OfferID{offer.Id}, tasks, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
+		} else {
+			driver.DeclineOffer(offer.Id, &mesos.Filters{RefuseSeconds: proto.Float64(10)})
+		}
 	}
 }
 
@@ -257,8 +258,8 @@ func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources
 				Value: proto.String(fmt.Sprintf("elodina-mirror-%s-%d", *offer.Offer.Hostname, *port)),
 			}
 
-            cpuTaken := this.config.CpuPerTask * float64(this.config.ThreadsPerTask)
-            memoryTaken := this.config.MemPerTask * float64(this.config.ThreadsPerTask)
+			cpuTaken := this.config.CpuPerTask * float64(this.config.ThreadsPerTask)
+			memoryTaken := this.config.MemPerTask * float64(this.config.ThreadsPerTask)
 			task := &mesos.TaskInfo{
 				Name:     proto.String(taskId.GetValue()),
 				TaskId:   taskId,
