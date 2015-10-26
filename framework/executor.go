@@ -98,7 +98,7 @@ func (this *HttpMirrorExecutor) LaunchTask(driver executor.ExecutorDriver, taskI
 	}
 
 	fmt.Println(string(taskInfo.Data))
-	config := &consumer.PartitionConsumerConfig{}
+	config := consumer.NewPartitionConsumerConfig("syphon")
 	json.Unmarshal(taskInfo.Data, config)
 	fmt.Printf("%v\n", config)
 	this.partitionConsumer = consumer.NewPartitionConsumer(*config)
@@ -149,6 +149,7 @@ func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, mes
 	if err != nil {
 		return err
 	}
+	fmt.Println("encoded message")
 	request, err := http.NewRequest("POST", this.targetURL, bytes.NewReader(encodedMessage))
 	request.Header.Add("X-Api-Key", this.apiKey)
 	request.Header.Add("X-Api-User", this.apiUser)
@@ -156,10 +157,12 @@ func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, mes
 	if err != nil {
 		return err
 	}
+	fmt.Println("Sending request")
 	resp, err := this.httpsClient.Do(request)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Sent request")
 	if resp.StatusCode != 200 {
 		defer resp.Body.Close()
 		bodyData, err := ioutil.ReadAll(resp.Body)

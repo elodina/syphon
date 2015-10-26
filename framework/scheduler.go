@@ -197,6 +197,7 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 // mesos.Scheduler interface method.
 // Invoked when the status of a task has changed.
 func (this *ElodinaTransportScheduler) StatusUpdate(driver scheduler.SchedulerDriver, status *mesos.TaskStatus) {
+	fmt.Printf("Received status %s for task %s\n", status.GetState().Enum(), status.GetTaskId().GetValue())
 	if *status.GetState().Enum() == mesos.TaskState_TASK_RUNNING {
 		this.taskIdToTaskState[*status.TaskId.Value].pending = true
 	} else if status.GetState() == mesos.TaskState_TASK_LOST || status.GetState() == mesos.TaskState_TASK_FAILED || status.GetState() == mesos.TaskState_TASK_FINISHED {

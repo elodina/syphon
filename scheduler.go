@@ -104,7 +104,7 @@ func startArtifactServer() {
 }
 
 func mustReadConsumerConfig(path string) consumer.PartitionConsumerConfig {
-	config := consumer.PartitionConsumerConfig{}
+	config := consumer.NewPartitionConsumerConfig("syphon")
 	cfgMap, err := cfg.LoadNewMap(path)
 	if err != nil {
 		panic(err)
@@ -195,5 +195,5 @@ func mustReadConsumerConfig(path string) consumer.PartitionConsumerConfig {
 	}
 	config.WriteTimeout = writeTimeout
 
-	return config
+	return *config
 }

@@ -78,8 +78,8 @@ type PartitionConsumerConfig struct {
 	ClientID string
 }
 
-func NewPartitionConsumerConfig(group string) PartitionConsumerConfig {
-	return PartitionConsumerConfig{
+func NewPartitionConsumerConfig(group string) *PartitionConsumerConfig {
+	return &PartitionConsumerConfig{
 		Group:                   group,
 		CommitInterval:          1 * time.Second,
 		ReadTimeout:             5 * time.Second,
