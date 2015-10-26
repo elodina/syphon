@@ -223,6 +223,11 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 					if _, exists := response.Data[topic][partition]; !exists {
 						continue
 					}
+					if response.Data[topic][partition].Error != siesta.ErrNoError {
+						fmt.Printf("Got error for topic %s and partition %d: %s", topic, partition, response.Data[topic][partition].Error)
+						continue
+					}
+					
 					if len(response.Data[topic][partition].Messages) == 0 {
 						continue
 					}
