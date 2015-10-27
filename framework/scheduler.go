@@ -198,13 +198,21 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 // mesos.Scheduler interface method.
 // Invoked when the status of a task has changed.
 func (this *ElodinaTransportScheduler) StatusUpdate(driver scheduler.SchedulerDriver, status *mesos.TaskStatus) {
-	fmt.Printf("Received status %s for task %s\n", status.GetState().Enum(), status.GetTaskId().GetValue())
-	if *status.GetState().Enum() == mesos.TaskState_TASK_RUNNING {
-		this.taskIdToTaskState[*status.TaskId.Value].pending = true
-	} else if status.GetState() == mesos.TaskState_TASK_LOST || status.GetState() == mesos.TaskState_TASK_FAILED || status.GetState() == mesos.TaskState_TASK_FINISHED {
-		this.TakenTopicPartitions.RemoveAll(this.taskIdToTaskState[*status.TaskId.Value].GetAssignment())
-		delete(this.taskIdToTaskState, *status.TaskId.Value)
+	fmt.Printf("Received status %s for task %s\n", status.GetState().Enum(), status.TaskId.GetValue())
+	if status.GetState() == mesos.TaskState_TASK_RUNNING {
+		this.taskIdToTaskState[status.TaskId.GetValue()].pending = true
+	} else if isTerminated(status.GetState()) {
+		this.TakenTopicPartitions.RemoveAll(this.taskIdToTaskState[status.TaskId.GetValue()].GetAssignment())
+		delete(this.taskIdToTaskState, status.TaskId.GetValue())
 	}
+}
+
+func isTerminated(state mesos.TaskState) bool {
+	return state == mesos.TaskState_TASK_LOST ||
+		state == mesos.TaskState_TASK_FAILED ||
+		state == mesos.TaskState_TASK_FINISHED ||
+		state == mesos.TaskState_TASK_ERROR ||
+		state == mesos.TaskState_TASK_KILLED
 }
 
 // mesos.Scheduler interface method.
