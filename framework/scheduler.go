@@ -283,7 +283,7 @@ func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources
 			fmt.Printf("Prepared task: %s with offer %s for launch. Ports: %s\n", task.GetName(), offer.Offer.Id.GetValue(), taskPort)
 
 			transport := NewElodinaTransport(fmt.Sprintf("http://%s:%d/assign", *offer.Offer.Hostname, *port), task, this.config.StaleDuration)
-			this.taskIdToTaskState[*taskId.Value] = transport
+			this.taskIdToTaskState[taskId.GetValue()] = transport
 
 			fmt.Printf("Prepared task: %s with offer %s for launch. Ports: %s\n", task.GetName(), offer.Offer.Id.GetValue(), taskPort)
 
@@ -318,7 +318,7 @@ func (this *ElodinaTransportScheduler) tryKillTask(driver scheduler.SchedulerDri
 }
 
 func (this *ElodinaTransportScheduler) removeTask(id *mesos.TaskID) {
-	delete(this.taskIdToTaskState, *id.Value)
+	delete(this.taskIdToTaskState, id.GetValue())
 }
 
 func (this *ElodinaTransportScheduler) takePort(ports *[]*mesos.Value_Range) *uint64 {
