@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
+	"net/http"
+
 	"github.com/elodina/syphon/consumer"
 	"github.com/elodina/syphon/framework"
 	"github.com/gorilla/mux"
 	"github.com/mesos/mesos-go/executor"
-	"log"
-	"net/http"
 )
 
 var apiKey = flag.String("api.key", "", "Elodina API key")
@@ -68,7 +69,6 @@ func (this *ExecutorHTTPServer) Assign(w http.ResponseWriter, req *http.Request)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	fmt.Printf("%v\n", assignments)
 
 	this.httpMirrorExecutor.Assign(assignments)
 }

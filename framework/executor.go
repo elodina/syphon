@@ -145,12 +145,10 @@ func (this *HttpMirrorExecutor) Assign(tps []consumer.TopicAndPartition) {
 }
 
 func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, messages []*siesta.MessageAndOffset) error {
-	fmt.Printf("Trying to send message: %s, %d, %s\n", topic, partition, string(messages[0].Message.Value))
 	encodedMessage, err := json.Marshal(EncodeMessage(topic, partition, messages))
 	if err != nil {
 		return err
 	}
-	fmt.Println("encoded message")
 	request, err := http.NewRequest("POST", this.targetURL, bytes.NewReader(encodedMessage))
 	request.Header.Add("X-Api-Key", this.apiKey)
 	request.Header.Add("X-Api-User", this.apiUser)
@@ -158,13 +156,11 @@ func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, mes
 	if err != nil {
 		return err
 	}
-	fmt.Println("Sending request")
 	resp, err := this.httpsClient.Do(request)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	fmt.Println("Sent request")
 	if resp.StatusCode != 200 {
 		bodyData, err := ioutil.ReadAll(resp.Body)
 		fmt.Printf("Status code %d, Error: %s\n", resp.StatusCode, err.Error())
@@ -174,8 +170,6 @@ func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, mes
 
 		return errors.New(string(bodyData))
 	}
-
-	fmt.Println("mirrored")
 
 	return nil
 }
