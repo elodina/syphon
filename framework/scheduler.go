@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/elodina/syphon/consumer"
+	"github.com/elodina/syphon/log"
 	"github.com/golang/protobuf/proto"
 	mesos "github.com/mesos/mesos-go/mesosproto"
 	util "github.com/mesos/mesos-go/mesosutil"
@@ -124,37 +125,37 @@ func NewElodinaTransportScheduler(config ElodinaTransportSchedulerConfig) *Elodi
 // Invoked when the scheduler successfully registers with a Mesos master.
 func (this *ElodinaTransportScheduler) Registered(driver scheduler.SchedulerDriver, frameworkId *mesos.FrameworkID,
 	masterInfo *mesos.MasterInfo) {
-	fmt.Printf("Framework Registered with Master %s\n", masterInfo)
+	log.Logger.Info("Framework Registered with Master %s", masterInfo)
 }
 
 // mesos.Scheduler interface method.
 // Invoked when the scheduler re-registers with a newly elected Mesos master.
 func (this *ElodinaTransportScheduler) Reregistered(driver scheduler.SchedulerDriver, masterInfo *mesos.MasterInfo) {
-	fmt.Printf("Framework Re-Registered with Master %s\n", masterInfo)
+	log.Logger.Info("Framework Re-Registered with Master %s", masterInfo)
 }
 
 // mesos.Scheduler interface method.
 // Invoked when the scheduler becomes "disconnected" from the master.
 func (this *ElodinaTransportScheduler) Disconnected(driver scheduler.SchedulerDriver) {
-	fmt.Println("Disconnected")
+	log.Logger.Info("Disconnected")
 }
 
 // mesos.Scheduler interface method.
 // Invoked when resources have been offered to this framework.
 func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.SchedulerDriver, offers []*mesos.Offer) {
-	fmt.Println("Received offers")
+	log.Logger.Info("Received offers")
 	offersAndTasks := make(map[*mesos.Offer][]*mesos.TaskInfo)
 	remainingPartitions, err := this.GetTopicPartitions()
 	if err != nil {
 		return
 	}
 	remainingPartitions.RemoveAll(this.TakenTopicPartitions.GetArray())
-	fmt.Printf("%v\n", remainingPartitions)
+	log.Logger.Debug("%v", remainingPartitions)
 	tps := remainingPartitions.GetArray()
 
 	offersAndResources := this.wrapInOfferAndResources(offers)
 	for !remainingPartitions.IsEmpty() {
-		fmt.Printf("Iteration %v\n", remainingPartitions)
+		log.Logger.Debug("Iteration %v", remainingPartitions)
 		if this.hasEnoughInstances() {
 			for _, transfer := range this.taskIdToTaskState {
 				if len(transfer.assignment) < this.config.ThreadsPerTask {
@@ -169,7 +170,7 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 				}
 			}
 		} else {
-			fmt.Println("Trying to launch new task")
+			log.Logger.Debug("Trying to launch new task")
 			offer, task := this.launchNewTask(offersAndResources)
 			if offer != nil && task != nil {
 				offersAndTasks[offer] = append(offersAndTasks[offer], task)
@@ -198,7 +199,7 @@ func (this *ElodinaTransportScheduler) ResourceOffers(driver scheduler.Scheduler
 // mesos.Scheduler interface method.
 // Invoked when the status of a task has changed.
 func (this *ElodinaTransportScheduler) StatusUpdate(driver scheduler.SchedulerDriver, status *mesos.TaskStatus) {
-	fmt.Printf("Received status %s for task %s\n", status.GetState().Enum(), status.TaskId.GetValue())
+	log.Logger.Info("Received status %s for task %s", status.GetState().Enum(), status.TaskId.GetValue())
 	if status.GetState() == mesos.TaskState_TASK_RUNNING {
 		this.taskIdToTaskState[status.TaskId.GetValue()].pending = true
 	} else if isTerminated(status.GetState()) {
@@ -218,38 +219,38 @@ func isTerminated(state mesos.TaskState) bool {
 // mesos.Scheduler interface method.
 // Invoked when an offer is no longer valid.
 func (this *ElodinaTransportScheduler) OfferRescinded(driver scheduler.SchedulerDriver, offerId *mesos.OfferID) {
-	fmt.Printf("Offer %s is no longer valid\n", *offerId.Value)
+	log.Logger.Info("Offer %s is no longer valid", *offerId.Value)
 }
 
 // mesos.Scheduler interface method.
 // Invoked when an executor sends a message.
 func (this *ElodinaTransportScheduler) FrameworkMessage(driver scheduler.SchedulerDriver, executorId *mesos.ExecutorID,
 	slaveId *mesos.SlaveID, message string) {
-	fmt.Printf("Message from executor %s: %s\n", *executorId.Value, message)
+	log.Logger.Info("Message from executor %s: %s", *executorId.Value, message)
 }
 
 // mesos.Scheduler interface method.
 // Invoked when a slave has been determined unreachable
 func (this *ElodinaTransportScheduler) SlaveLost(driver scheduler.SchedulerDriver, slaveId *mesos.SlaveID) {
-	fmt.Printf("Slave %s has been lost.\n", *slaveId.Value)
+	log.Logger.Info("Slave %s has been lost.", *slaveId.Value)
 }
 
 // mesos.Scheduler interface method.
 // Invoked when an executor has exited/terminated.
 func (this *ElodinaTransportScheduler) ExecutorLost(scheduler scheduler.SchedulerDriver, executorId *mesos.ExecutorID,
 	slaveId *mesos.SlaveID, exitCode int) {
-	fmt.Printf("Executor %s on slave %s has exited with %d status code\n", *executorId.Value, *slaveId.Value, exitCode)
+	log.Logger.Info("Executor %s on slave %s has exited with %d status code", *executorId.Value, *slaveId.Value, exitCode)
 }
 
 // mesos.Scheduler interface method.
 // Invoked when there is an unrecoverable error in the scheduler or scheduler driver.
 func (this *ElodinaTransportScheduler) Error(driver scheduler.SchedulerDriver, err string) {
-	fmt.Printf("Scheduler received error: %s\n", err)
+	log.Logger.Info("Scheduler received error: %s", err)
 }
 
 // Gracefully shuts down all running tasks.
 func (this *ElodinaTransportScheduler) Shutdown(driver scheduler.SchedulerDriver) {
-	fmt.Println("Shutting down the scheduler.")
+	log.Logger.Info("Shutting down the scheduler.")
 }
 
 func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources) (*mesos.Offer, *mesos.TaskInfo) {
@@ -258,7 +259,7 @@ func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources
 		if err != nil {
 			break
 		}
-		fmt.Printf("%v\n", offer)
+		log.Logger.Debug("%v", offer)
 		if this.hasEnoughResources(offer) {
 			port := this.takePort(&offer.RemainingPorts)
 			taskPort := &mesos.Value_Range{Begin: port, End: port}
@@ -280,12 +281,12 @@ func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources
 				},
 				Data: configBlob,
 			}
-			fmt.Printf("Prepared task: %s with offer %s for launch. Ports: %s\n", task.GetName(), offer.Offer.Id.GetValue(), taskPort)
+			log.Logger.Debug("Prepared task: %s with offer %s for launch. Ports: %s", task.GetName(), offer.Offer.Id.GetValue(), taskPort)
 
 			transport := NewElodinaTransport(fmt.Sprintf("http://%s:%d/assign", *offer.Offer.Hostname, *port), task, this.config.StaleDuration)
 			this.taskIdToTaskState[taskId.GetValue()] = transport
 
-			fmt.Printf("Prepared task: %s with offer %s for launch. Ports: %s\n", task.GetName(), offer.Offer.Id.GetValue(), taskPort)
+			log.Logger.Debug("Prepared task: %s with offer %s for launch. Ports: %s", task.GetName(), offer.Offer.Id.GetValue(), taskPort)
 
 			offer.RemainingPorts = offer.RemainingPorts[1:]
 			offer.RemainingCpu -= cpuTaken
@@ -293,7 +294,7 @@ func (this *ElodinaTransportScheduler) launchNewTask(offers []*OfferAndResources
 
 			return offer.Offer, task
 		} else {
-			fmt.Println("Not enough CPU and memory")
+			log.Logger.Info("Not enough CPU and memory")
 		}
 	}
 
@@ -307,7 +308,7 @@ func (this *ElodinaTransportScheduler) hasEnoughResources(offer *OfferAndResourc
 }
 
 func (this *ElodinaTransportScheduler) tryKillTask(driver scheduler.SchedulerDriver, taskId *mesos.TaskID) error {
-	fmt.Printf("Trying to kill task %s\n", taskId.GetValue())
+	log.Logger.Info("Trying to kill task %s", taskId.GetValue())
 	var err error
 	for i := 0; i <= this.config.KillTaskRetries; i++ {
 		if _, err = driver.KillTask(taskId); err == nil {
@@ -383,8 +384,8 @@ func (this *ElodinaTransportScheduler) GetTopicPartitions() (*consumer.TopicAndP
 
 	tpSet := consumer.NewTopicAndPartitionSet()
 	tpSet.AddAll(topicsAndPartitions)
-	fmt.Printf("%v\n", topicsAndPartitions)
-	fmt.Printf("%v\n", tpSet.GetArray())
+	log.Logger.Debug("%v", topicsAndPartitions)
+	log.Logger.Debug("%v", tpSet.GetArray())
 
 	return tpSet, nil
 }
@@ -416,11 +417,11 @@ func (this *ElodinaTransportScheduler) assignPendingPartitions() {
 
 		data, err := json.Marshal(transfer.GetAssignment())
 		if err != nil {
-			fmt.Println(err.Error())
+			log.Logger.Warn(err.Error())
 		} else {
 			request, err := http.NewRequest("POST", transfer.GetConnectUrl(), bytes.NewReader(data))
 			if err != nil {
-				fmt.Println(err.Error())
+				log.Logger.Warn(err.Error())
 			}
 			resp, err := http.DefaultClient.Do(request)
 			if err != nil {
@@ -431,9 +432,9 @@ func (this *ElodinaTransportScheduler) assignPendingPartitions() {
 				func() {
 					body, err := ioutil.ReadAll(resp.Body)
 					if err != nil {
-						fmt.Println(err.Error())
+						log.Logger.Warn(err.Error())
 					}
-					fmt.Println(string(body))
+					log.Logger.Debug(string(body))
 				}()
 			} else {
 				transfer.pending = false

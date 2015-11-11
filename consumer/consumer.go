@@ -1,11 +1,11 @@
 package consumer
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/elodina/syphon/log"
 	"github.com/stealthly/siesta"
 )
 
@@ -149,7 +149,7 @@ func NewPartitionConsumer(consumerConfig PartitionConsumerConfig) *PartitionCons
 							if offsetToCommit > fetcherState.LastCommitted {
 								err := consumer.kafkaClient.CommitOffset(consumer.config.Group, topic, partition, offsetToCommit)
 								if err != nil {
-									fmt.Printf("Failed to commit offset: %s\n", err.Error())
+									log.Logger.Warn("Failed to commit offset: %s", err.Error())
 								}
 							}
 							if fetcherState.Removed {
@@ -181,11 +181,11 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 				offset, err := this.kafkaClient.GetOffset(this.config.Group, topic, partition)
 				if err != nil {
 					//It's not critical, since offsets have not been committed yet
-					fmt.Printf("Error fetching topic metadata: %s\n", err.Error())
+					log.Logger.Info("Error fetching topic metadata: %s", err.Error())
 
 					offset, err = this.kafkaClient.GetAvailableOffset(topic, partition, siesta.EarliestTime)
 					if err != nil {
-						fmt.Printf("Error getting available offset for topic %s, partition %d: %s\n", topic, partition, err.Error())
+						log.Logger.Error("Error getting available offset for topic %s, partition %d: %s", topic, partition, err.Error())
 					}
 				}
 				fetcherState = NewFetcherState(offset)
@@ -197,7 +197,7 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 	})
 
 	if fetcherState == nil {
-		fmt.Println("Fetcher state is nil! Yikes! Returning...")
+		log.Logger.Debug("Fetcher state is nil! Yikes! Returning...")
 		return nil
 	}
 
@@ -205,7 +205,7 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 		for {
 			response, err := this.kafkaClient.Fetch(topic, partition, fetcherState.GetOffset()+1)
 			if err != nil {
-				fmt.Printf("Kafka error: %s\n", err.Error())
+				log.Logger.Warn("Kafka error: %s", err.Error())
 				continue
 			}
 
@@ -227,12 +227,12 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 						if err == siesta.ErrOffsetOutOfRange {
 							offset, err := this.kafkaClient.GetAvailableOffset(topic, partition, siesta.EarliestTime)
 							if err != nil {
-								fmt.Printf("Error getting available offset for topic %s, partition %d: %s\n", topic, partition, err.Error())
+								log.Logger.Warn("Error getting available offset for topic %s, partition %d: %s", topic, partition, err.Error())
 							} else {
 								fetcherState.SetOffset(offset)
 							}
 						} else {
-							fmt.Printf("Got error for topic %s and partition %d: %s", topic, partition, err)
+							log.Logger.Warn("Got error for topic %s and partition %d: %s", topic, partition, err)
 						}
 
 						time.Sleep(this.config.FetchErrorBackoff)
@@ -245,7 +245,7 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 
 					err = strategy(topic, partition, response.Data[topic][partition].Messages)
 					if err != nil {
-						fmt.Printf("Strategy error: %s\n", err.Error())
+						log.Logger.Warn("Strategy error: %s", err.Error())
 					}
 
 					offsetIndex := len(response.Data[topic][partition].Messages) - 1

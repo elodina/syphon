@@ -5,17 +5,18 @@ import (
 	"fmt"
 	"github.com/elodina/syphon/consumer"
 	"github.com/elodina/syphon/framework"
+	"github.com/elodina/syphon/log"
 	"github.com/golang/protobuf/proto"
 	"github.com/jimlawless/cfg"
 	"github.com/mesos/mesos-go/mesosproto"
 	"github.com/mesos/mesos-go/scheduler"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"time"
-	"io"
 )
 
 var master = flag.String("master", "127.0.0.1:5050", "Mesos Master address <ip:port>.")
@@ -98,6 +99,33 @@ func startArtifactServer() {
 	})
 	http.HandleFunc(fmt.Sprintf("/health"), func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "OK")
+	})
+	http.HandleFunc(fmt.Sprintf("/logger/"), func(w http.ResponseWriter, r *http.Request) {
+		logLevelTokens := strings.Split(r.URL.Path, "/")
+		logLevel := logLevelTokens[len(logLevelTokens)-1]
+
+		var level log.LogLevel
+		switch strings.ToLower(logLevel) {
+		case "trace":
+			level = log.TraceLevel
+		case "debug":
+			level = log.DebugLevel
+		case "info":
+			level = log.InfoLevel
+		case "warn":
+			level = log.WarnLevel
+		case "error":
+			level = log.ErrorLevel
+		case "critical":
+			level = log.CriticalLevel
+		default:
+			{
+				fmt.Printf("Invalid log level: %s\n", logLevel)
+				return
+			}
+		}
+
+		log.Logger = log.NewDefaultLogger(level)
 	})
 
 	http.ListenAndServe(*artifactServerListen, nil)
