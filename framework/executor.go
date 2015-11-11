@@ -6,14 +6,13 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"time"
 
 	"github.com/elodina/syphon/consumer"
+	"github.com/elodina/syphon/log"
 	"github.com/mesos/mesos-go/executor"
 	mesos "github.com/mesos/mesos-go/mesosproto"
 	"github.com/stealthly/siesta"
@@ -32,13 +31,15 @@ func NewHttpMirrorExecutor(apiKey, apiUser, certFile, keyFile, caFile, targetURL
 	// Load client cert
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Logger.Critical(err)
+		panic(err)
 	}
 
 	// Load CA cert
 	caCert, err := ioutil.ReadFile(caFile)
 	if err != nil {
-		log.Fatalf("Error loading CA certificate: %s", err.Error())
+		log.Logger.Critical(err)
+		panic(err)
 	}
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)
@@ -73,39 +74,39 @@ func NewHttpMirrorExecutor(apiKey, apiUser, certFile, keyFile, caFile, targetURL
 // Invoked once the executor driver has been able to successfully connect with Mesos.
 // Not used by HttpMirrorExecutor yet.
 func (this *HttpMirrorExecutor) Registered(driver executor.ExecutorDriver, execInfo *mesos.ExecutorInfo, fwinfo *mesos.FrameworkInfo, slaveInfo *mesos.SlaveInfo) {
-	fmt.Printf("Registered Executor on slave %s\n", slaveInfo.GetHostname())
+	log.Logger.Info("Registered Executor on slave %s", slaveInfo.GetHostname())
 }
 
 // mesos.Executor interface method.
 // Invoked when the executor re-registers with a restarted slave.
 func (this *HttpMirrorExecutor) Reregistered(driver executor.ExecutorDriver, slaveInfo *mesos.SlaveInfo) {
-	fmt.Printf("Re-registered Executor on slave %s\n", slaveInfo.GetHostname())
+	log.Logger.Info("Re-registered Executor on slave %s", slaveInfo.GetHostname())
 }
 
 // mesos.Executor interface method.
 // Invoked when the executor becomes "disconnected" from the slave.
 func (this *HttpMirrorExecutor) Disconnected(executor.ExecutorDriver) {
-	fmt.Println("Executor disconnected.")
+	log.Logger.Info("Executor disconnected.")
 }
 
 // mesos.Executor interface method.
 // Invoked when a task has been launched on this executor.
 func (this *HttpMirrorExecutor) LaunchTask(driver executor.ExecutorDriver, taskInfo *mesos.TaskInfo) {
-	fmt.Printf("Launching task %s with command %s\n", taskInfo.GetName(), taskInfo.Command.GetValue())
+	log.Logger.Info("Launching task %s with command %s", taskInfo.GetName(), taskInfo.Command.GetValue())
 
 	runStatus := &mesos.TaskStatus{
 		TaskId: taskInfo.GetTaskId(),
 		State:  mesos.TaskState_TASK_RUNNING.Enum(),
 	}
 
-	fmt.Println(string(taskInfo.Data))
+	log.Logger.Debug(string(taskInfo.Data))
 	config := consumer.NewPartitionConsumerConfig("syphon")
 	json.Unmarshal(taskInfo.Data, config)
-	fmt.Printf("%v\n", config)
+	log.Logger.Debug("%v", config)
 	this.partitionConsumer = consumer.NewPartitionConsumer(*config)
 
 	if _, err := driver.SendStatusUpdate(runStatus); err != nil {
-		fmt.Printf("Failed to send status update: %s\n", runStatus)
+		log.Logger.Warn("Failed to send status update: %s", runStatus)
 	}
 }
 
@@ -117,19 +118,19 @@ func (this *HttpMirrorExecutor) KillTask(_ executor.ExecutorDriver, taskId *meso
 // mesos.Executor interface method.
 // Invoked when a framework message has arrived for this executor.
 func (this *HttpMirrorExecutor) FrameworkMessage(driver executor.ExecutorDriver, msg string) {
-	fmt.Printf("Got framework message: %s\n", msg)
+	log.Logger.Info("Got framework message: %s", msg)
 }
 
 // mesos.Executor interface method.
 // Invoked when the executor should terminate all of its currently running tasks.
 func (this *HttpMirrorExecutor) Shutdown(executor.ExecutorDriver) {
-	fmt.Println("Shutting down the executor")
+	log.Logger.Info("Shutting down the executor")
 }
 
 // mesos.Executor interface method.
 // Invoked when a fatal error has occured with the executor and/or executor driver.
 func (this *HttpMirrorExecutor) Error(driver executor.ExecutorDriver, err string) {
-	fmt.Printf("Got error message: %s\n", err)
+	log.Logger.Info("Got error message: %s", err)
 }
 
 func (this *HttpMirrorExecutor) Assign(tps []consumer.TopicAndPartition) {
@@ -163,7 +164,7 @@ func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, mes
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		bodyData, err := ioutil.ReadAll(resp.Body)
-		fmt.Printf("Status code %d, Error: %s\n", resp.StatusCode, err.Error())
+		log.Logger.Debug("Status code %d, Error: %s", resp.StatusCode, err.Error())
 		if err != nil {
 			return err
 		}
