@@ -76,6 +76,9 @@ type PartitionConsumerConfig struct {
 
 	// ClientID that will be used by a connector to identify client requests by broker.
 	ClientID string
+
+	// Backoff value between fetches in case of errors
+	FetchErrorBackoff time.Duration
 }
 
 func NewPartitionConsumerConfig(group string) *PartitionConsumerConfig {
@@ -98,6 +101,7 @@ func NewPartitionConsumerConfig(group string) *PartitionConsumerConfig {
 		ConsumerMetadataRetries: 15,
 		ConsumerMetadataBackoff: 500 * time.Millisecond,
 		ClientID:                "partition-consumer",
+		FetchErrorBackoff:       500 * time.Millisecond,
 	}
 }
 
@@ -220,7 +224,6 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 					}
 					err = response.Data[topic][partition].Error
 					if err != siesta.ErrNoError {
-						fmt.Printf("Got error for topic %s and partition %d: %s", topic, partition, err)
 						if err == siesta.ErrOffsetOutOfRange {
 							offset, err := this.kafkaClient.GetAvailableOffset(topic, partition, siesta.EarliestTime)
 							if err != nil {
@@ -228,7 +231,11 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 							} else {
 								fetcherState.SetOffset(offset)
 							}
+						} else {
+							fmt.Printf("Got error for topic %s and partition %d: %s", topic, partition, err)
 						}
+
+						time.Sleep(this.config.FetchErrorBackoff)
 						continue
 					}
 
