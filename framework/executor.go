@@ -31,14 +31,14 @@ func NewHttpMirrorExecutor(apiKey, apiUser, certFile, keyFile, caFile, targetURL
 	// Load client cert
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		log.Logger.Critical(err)
+		log.Logger.Critical(err.Error())
 		panic(err)
 	}
 
 	// Load CA cert
 	caCert, err := ioutil.ReadFile(caFile)
 	if err != nil {
-		log.Logger.Critical(err)
+		log.Logger.Critical(err.Error())
 		panic(err)
 	}
 	caCertPool := x509.NewCertPool()
