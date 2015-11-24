@@ -23,3 +23,7 @@ _testmain.go
 *.test
 *.prof
 Godeps/_workspace
+
+# Idea
+*.iml
+/.idea

@@ -11,6 +11,8 @@ import (
 	"github.com/elodina/syphon/framework"
 	"github.com/gorilla/mux"
 	"github.com/mesos/mesos-go/executor"
+	"github.com/elodina/syphon/tracer"
+	"strings"
 )
 
 var apiKey = flag.String("api.key", "", "Elodina API key")
@@ -21,10 +23,15 @@ var keyFile = flag.String("ssl.key", "", "SSL private key file path.")
 var caFile = flag.String("ssl.cacert", "", "Certifying Authority SSL Certificate file path.")
 var targetUrl = flag.String("target.url", "", "Target URL.")
 var port = flag.Int("port", 8989, "Port to bind to")
+var zipkinBrokerList = flag.String("zipkin.kafka.broker.list", "", "Zipkin Kafka broker list")
+var zipkinTopic = flag.String("zipkin.kafka.topic", "zipkin", "Zipkin Kafka topic")
+var zipkinSampleRate = flag.Float64("zipkin.sample.rate", 0.001, "Zipkin sample rate")
 
 func main() {
 	flag.Parse()
 	fmt.Println("Starting Elodina Executor")
+	tracer.Tracer = tracer.NewDefaultTracer("syphon", *zipkinSampleRate, strings.Split(*zipkinBrokerList, ","), *zipkinTopic)
+
 	httpMirrorExecutor := framework.NewHttpMirrorExecutor(*apiKey, *apiUser, *certFile, *keyFile, *caFile, *targetUrl, *insecure)
 	driverConfig := executor.DriverConfig{
 		Executor: httpMirrorExecutor,

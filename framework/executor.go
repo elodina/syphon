@@ -16,6 +16,9 @@ import (
 	"github.com/mesos/mesos-go/executor"
 	mesos "github.com/mesos/mesos-go/mesosproto"
 	"github.com/stealthly/siesta"
+	"github.com/elodina/syphon/tracer"
+	"gopkg.in/spacemonkeygo/monitor.v1/trace"
+	"golang.org/x/net/context"
 )
 
 type HttpMirrorExecutor struct {
@@ -145,27 +148,33 @@ func (this *HttpMirrorExecutor) Assign(tps []consumer.TopicAndPartition) {
 	}
 }
 
-func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, messages []*siesta.MessageAndOffset) error {
+func (this *HttpMirrorExecutor) MirrorMessage(topic string, partition int32, messages []*siesta.MessageAndOffset, ctx context.Context) error {
 	encodedMessage, err := json.Marshal(EncodeMessage(topic, partition, messages))
 	if err != nil {
 		return err
 	}
+	clientRcv := tracer.Tracer.TraceClient(&ctx, "syphon_msg_batch")
 	request, err := http.NewRequest("POST", this.targetURL, bytes.NewReader(encodedMessage))
 	request.Header.Add("X-Api-Key", this.apiKey)
 	request.Header.Add("X-Api-User", this.apiUser)
-
+	if currentSpan, ok := trace.SpanFromContext(ctx); ok && !currentSpan.TraceDisabled() {
+		currentSpan.Request().SetHeader(request.Header)
+	}
 	if err != nil {
 		return err
 	}
 	resp, err := this.httpsClient.Do(request)
 	if err != nil {
+		clientRcv(&err)
 		return err
 	}
 	defer resp.Body.Close()
+	clientRcv(nil)
 	if resp.StatusCode != 200 {
 		bodyData, err := ioutil.ReadAll(resp.Body)
-		log.Logger.Debug("Status code %d, Error: %s", resp.StatusCode, err.Error())
+		log.Logger.Debug("Status code %d", resp.StatusCode)
 		if err != nil {
+			log.Logger.Debug("Error code %s", err.Error())
 			return err
 		}
 

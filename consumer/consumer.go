@@ -7,6 +7,10 @@ import (
 
 	"github.com/elodina/syphon/log"
 	"github.com/stealthly/siesta"
+	"github.com/elodina/syphon/tracer"
+	"fmt"
+	"gopkg.in/spacemonkeygo/monitor.v1/trace"
+	"golang.org/x/net/context"
 )
 
 type PartitionConsumer struct {
@@ -18,55 +22,55 @@ type PartitionConsumer struct {
 
 type PartitionConsumerConfig struct {
 	// Consumer group
-	Group string
+	Group                   string
 
 	//Interval to commit offsets at
-	CommitInterval time.Duration
+	CommitInterval          time.Duration
 
 	// BrokerList is a bootstrap list to discover other brokers in a cluster. At least one broker is required.
-	BrokerList []string
+	BrokerList              []string
 
 	// ReadTimeout is a timeout to read the response from a TCP socket.
-	ReadTimeout time.Duration
+	ReadTimeout             time.Duration
 
 	// WriteTimeout is a timeout to write the request to a TCP socket.
-	WriteTimeout time.Duration
+	WriteTimeout            time.Duration
 
 	// ConnectTimeout is a timeout to connect to a TCP socket.
-	ConnectTimeout time.Duration
+	ConnectTimeout          time.Duration
 
 	// Sets whether the connection should be kept alive.
-	KeepAlive bool
+	KeepAlive               bool
 
 	// A keep alive period for a TCP connection.
-	KeepAliveTimeout time.Duration
+	KeepAliveTimeout        time.Duration
 
 	// Maximum number of open connections for a connector.
-	MaxConnections int
+	MaxConnections          int
 
 	// Maximum number of open connections for a single broker for a connector.
 	MaxConnectionsPerBroker int
 
 	// Maximum fetch size in bytes which will be used in all Consume() calls.
-	FetchSize int32
+	FetchSize               int32
 
 	// The minimum amount of data the server should return for a fetch request. If insufficient data is available the request will block
-	FetchMinBytes int32
+	FetchMinBytes           int32
 
 	// The maximum amount of time the server will block before answering the fetch request if there isn't sufficient data to immediately satisfy FetchMinBytes
-	FetchMaxWaitTime int32
+	FetchMaxWaitTime        int32
 
 	// Number of retries to get topic metadata.
-	MetadataRetries int
+	MetadataRetries         int
 
 	// Backoff value between topic metadata requests.
-	MetadataBackoff time.Duration
+	MetadataBackoff         time.Duration
 
 	// Number of retries to commit an offset.
-	CommitOffsetRetries int
+	CommitOffsetRetries     int
 
 	// Backoff value between commit offset requests.
-	CommitOffsetBackoff time.Duration
+	CommitOffsetBackoff     time.Duration
 
 	// Number of retries to get consumer metadata.
 	ConsumerMetadataRetries int
@@ -75,10 +79,10 @@ type PartitionConsumerConfig struct {
 	ConsumerMetadataBackoff time.Duration
 
 	// ClientID that will be used by a connector to identify client requests by broker.
-	ClientID string
+	ClientID                string
 
 	// Backoff value between fetches in case of errors
-	FetchErrorBackoff time.Duration
+	FetchErrorBackoff       time.Duration
 }
 
 func NewPartitionConsumerConfig(group string) *PartitionConsumerConfig {
@@ -203,7 +207,7 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 
 	go func() {
 		for {
-			response, err := this.kafkaClient.Fetch(topic, partition, fetcherState.GetOffset()+1)
+			response, err := this.kafkaClient.Fetch(topic, partition, fetcherState.GetOffset() + 1)
 			if err != nil {
 				log.Logger.Warn("Kafka error: %s", err.Error())
 				continue
@@ -242,10 +246,12 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 					if len(response.Data[topic][partition].Messages) == 0 {
 						continue
 					}
-
-					err = strategy(topic, partition, response.Data[topic][partition].Messages)
+					ctx := tracer.Tracer.InitServer(fmt.Sprint("incoming_", topic, "_topic_batch"), trace.Request{})
+					err = strategy(topic, partition, response.Data[topic][partition].Messages, ctx)
 					if err != nil {
-						log.Logger.Warn("Strategy error: %s", err.Error())
+						// Not sure on logging level here, but it seems, would make sense to have it at debug,
+						// so we could flawlessly point Syphon to a dummy endpoint.
+						log.Logger.Debug("Strategy error: %s", err.Error())
 					}
 
 					offsetIndex := len(response.Data[topic][partition].Messages) - 1
@@ -293,7 +299,7 @@ func NewFetcherState(initialOffset int64) *FetcherState {
 	}
 }
 
-func (this *FetcherState) GetStopChannel() chan<- bool {
+func (this *FetcherState) GetStopChannel() chan <- bool {
 	return this.stopChannel
 }
 
@@ -305,4 +311,4 @@ func (this *FetcherState) SetOffset(offset int64) {
 	atomic.StoreInt64(&this.offset, offset)
 }
 
-type Strategy func(topic string, partition int32, messages []*siesta.MessageAndOffset) error
+type Strategy func(topic string, partition int32, messages []*siesta.MessageAndOffset, ctx context.Context) error
