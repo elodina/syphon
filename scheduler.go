@@ -36,9 +36,6 @@ var caFile = flag.String("ssl.cacert", "", "Certifying Authority SSL Certificate
 var apiKey = flag.String("api.key", "", "Elodina API key")
 var apiUser = flag.String("api.user", "", "Elodina API user")
 var insecure = flag.Bool("insecure", false, "Disable certificate verification")
-var zipkinBrokerList = flag.String("zipkin.kafka.broker.list", "", "Zipkin Kafka broker list")
-var zipkinTopic = flag.String("zipkin.kafka.topic", "zipkin", "Zipkin Kafka topic")
-var zipkinSampleRate = flag.Float64("zipkin.sample.rate", 0.001, "Zipkin sample rate")
 
 func main() {
 	flag.Parse()
@@ -66,9 +63,6 @@ func main() {
 	schedulerConfig.ApiKey = *apiKey
 	schedulerConfig.ApiUser = *apiUser
 	schedulerConfig.Insecure = *insecure
-	schedulerConfig.ZipkinBrokerList = *zipkinBrokerList
-	schedulerConfig.ZipkinTopic = *zipkinTopic
-	schedulerConfig.ZipkinSampleRate = *zipkinSampleRate
 	schedulerConfig.ConsumerConfig = mustReadConsumerConfig(*consumerConfigPath)
 
 	transportScheduler := framework.NewElodinaTransportScheduler(schedulerConfig)

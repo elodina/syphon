@@ -22,12 +22,9 @@ var keyFile = flag.String("ssl.key", "", "SSL private key file path.")
 var caFile = flag.String("ssl.cacert", "", "Certifying Authority SSL Certificate file path.")
 var apiKey = flag.String("api.key", "", "Elodina API key")
 var apiUser = flag.String("api.user", "", "Elodina API user")
-var zipkinBrokerList = flag.String("zipkin.kafka.broker.list", "", "Zipkin Kafka broker list")
-var zipkinTopic = flag.String("zipkin.kafka.topic", "zipkin", "Zipkin Kafka topic")
-var zipkinSampleRate = flag.Float64("zipkin.sample.rate", 0.001, "Zipkin sample rate")
 var marathonURL = flag.String("marathon.url", "http://127.0.0.1:8080", "Marathon URL.")
 
-const launchPattern = "./scheduler --master %s --topics %s --task.threads %d --artifacts.host %s --artifacts.port %d --ssl.cert %s --ssl.key %s --ssl.cacert %s --consumer.config %s --target.url %s --api.key %s --api.user %s --zipkin.kafka.broker.list %s --zipkin.kafka.topic %s --zipkin.sample.rate %d --cpu.per.task 0.1 --mem.per.task 128"
+const launchPattern = "./scheduler --master %s --topics %s --task.threads %d --artifacts.host %s --artifacts.port %d --ssl.cert %s --ssl.key %s --ssl.cacert %s --consumer.config %s --target.url %s --api.key %s --api.user %s --cpu.per.task 0.1 --mem.per.task 128"
 
 func main() {
     flag.Parse()
@@ -37,9 +34,7 @@ func main() {
     if marathonClient, err := marathon.NewClient(marathonConfig); err != nil {
         log.Fatal(err)
     } else {
-        launchCommand := fmt.Sprintf(launchPattern, *master, *topics, *threadsPerTask, *artifactServerHost,
-            *artifactServerPort, *certFile, *keyFile, *caFile, *consumerConfigPath, *targetUrl, *apiKey, *apiUser,
-            *zipkinBrokerList, *zipkinTopic, *zipkinSampleRate)
+        launchCommand := fmt.Sprintf(launchPattern, *master, *topics, *threadsPerTask, *artifactServerHost, *artifactServerPort, *certFile, *keyFile, *caFile, *consumerConfigPath, *targetUrl, *apiKey, *apiUser)
         healthCheck := marathon.NewDefaultHealthCheck()
         healthCheck.Path = "/health"
         application := &marathon.Application{

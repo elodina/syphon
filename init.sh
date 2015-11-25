@@ -103,5 +103,5 @@ if [[ "$mode" = "master" ]]; then
     docker tag ${latest} master:5000/elodina/syphon
     docker push master:5000/elodina/syphon
 
-    docker run --net=host -i -t elodina/syphon ./marathon_deploy --master zk://master:2181/mesos --docker.registry.url master:5000 --marathon.url http://master:8080 --topics st_src --task.threads 1 --artifacts.host master --artifacts.port 8888 --ssl.cert cert.pem --ssl.key=key.pem --ssl.cacert=server.crt --consumer.config=consumer.properties --target.url=https://10.1.16.228:31002/ --api.key testkey --api.user johnsnow --zipkin.kafka.broker.list master:9092 --zipkin.kafka.topic zipkin --zipkin.sample.rate 0.001
+    docker run --net=host -i -t elodina/syphon ./marathon_deploy --master zk://master:2181/mesos --docker.registry.url master:5000 --marathon.url http://master:8080 --topics test_src --task.threads 1 --artifacts.host master --artifacts.port 8888 --ssl.cert cert.pem --ssl.key=key.pem --ssl.cacert=server.crt --consumer.config=consumer.properties --target.url=https://10.1.16.228:31002/ --api.key testkey --api.user johnsnow
 fi

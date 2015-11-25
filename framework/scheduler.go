@@ -15,7 +15,6 @@ import (
 	util "github.com/mesos/mesos-go/mesosutil"
 	"github.com/mesos/mesos-go/scheduler"
 	"github.com/stealthly/siesta"
-	"strconv"
 )
 
 type ElodinaTransportSchedulerConfig struct {
@@ -68,14 +67,6 @@ type ElodinaTransportSchedulerConfig struct {
 
 	//Disable certificate verification
 	Insecure bool
-
-	//Zipkin Kafka broker list
-	ZipkinBrokerList string
-
-	//Zpikin Kafka topic
-	ZipkinTopic string
-
-	ZipkinSampleRate float64
 }
 
 func NewElodinaTransportSchedulerConfig() ElodinaTransportSchedulerConfig {
@@ -346,18 +337,13 @@ func (this *ElodinaTransportScheduler) takePort(ports *[]*mesos.Value_Range) *ui
 }
 
 func (this *ElodinaTransportScheduler) createExecutor(instanceId int, port uint64) *mesos.ExecutorInfo {
-	commandToLaunch := fmt.Sprintf("./%s --port %d --ssl.cert %s --ssl.key %s --ssl.cacert %s --api.key %s --api.user %s --target.url %s --zipkin.kafka.broker.list %s --zipkin.kafka.topic %s --zipkin.sample.rate %s --insecure %v",
-		this.config.ExecutorBinaryName, port, this.config.SSLCertFilePath, this.config.SSLKeyFilePath,
-		this.config.SSLCACertFilePath, this.config.ApiKey, this.config.ApiUser, this.config.TargetURL,
-		this.config.ZipkinBrokerList, this.config.ZipkinTopic, strconv.FormatFloat(this.config.ZipkinSampleRate, 'f', -1, 64),
-		this.config.Insecure)
-	log.Logger.Info("Launching executor with command: %s", commandToLaunch)
 	return &mesos.ExecutorInfo{
 		ExecutorId: util.NewExecutorID(fmt.Sprintf("elodina-mirror-%d", instanceId)),
 		Name:       proto.String("Elodina Mirror Executor"),
 		Source:     proto.String("Elodina"),
 		Command: &mesos.CommandInfo{
-			Value: proto.String(commandToLaunch),
+			Value: proto.String(fmt.Sprintf("./%s --port %d --ssl.cert %s --ssl.key %s --ssl.cacert %s --api.key %s --api.user %s --target.url %s --insecure %v",
+				this.config.ExecutorBinaryName, port, this.config.SSLCertFilePath, this.config.SSLKeyFilePath, this.config.SSLCACertFilePath, this.config.ApiKey, this.config.ApiUser, this.config.TargetURL, this.config.Insecure)),
 			Uris: []*mesos.CommandInfo_URI{&mesos.CommandInfo_URI{
 				Value:      proto.String(fmt.Sprintf("http://%s:%d/resource/%s", this.config.ServiceHost, this.config.ServicePort, this.config.ExecutorBinaryName)),
 				Executable: proto.Bool(true),
