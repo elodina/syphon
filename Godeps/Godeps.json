@@ -12,10 +12,6 @@
 			"Rev": "92dc4b8b540607b8187cc2f95cac200211dcd745"
 		},
 		{
-			"ImportPath": "github.com/elodina/go-zipkin",
-			"Rev": "5072969df780d71f1165c668bd7493c2018fefe7"
-		},
-		{
 			"ImportPath": "github.com/elodina/pyrgus/log",
 			"Rev": "a8f6e4a60d7f48dadc19bff157fe105270b87749"
 		},
