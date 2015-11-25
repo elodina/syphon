@@ -8,10 +8,6 @@
 			"Rev": "92dc4b8b540607b8187cc2f95cac200211dcd745"
 		},
 		{
-			"ImportPath": "github.com/elodina/pyrgus/log",
-			"Rev": "a8f6e4a60d7f48dadc19bff157fe105270b87749"
-		},
-		{
 			"ImportPath": "github.com/gambol99/go-marathon",
 			"Rev": "0ba31bcb0d7633ba1888d744c42990eb15281cf1"
 		},
