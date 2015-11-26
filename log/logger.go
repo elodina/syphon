@@ -24,7 +24,7 @@ import (
 )
 
 // Logger used by this client. Defaults to build-in logger with Info log level.
-var Logger Log = NewDefaultLogger(InfoLevel)
+var Logger Log = NewDefaultLogger(DebugLevel)
 
 // Log is a logger interface. Lets you plug-in your custom logging library instead of using built-in one.
 type Log interface {
