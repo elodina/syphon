@@ -248,6 +248,7 @@ func (this *PartitionConsumer) Add(topic string, partition int32, strategy Strat
 					}
 					ctx := tracer.Tracer.InitServer(fmt.Sprint("incoming_", topic, "_topic_batch"), trace.Request{})
 					err = strategy(topic, partition, response.Data[topic][partition].Messages, ctx)
+					tracer.Tracer.CollectFromContext(ctx)
 					if err != nil {
 						// Not sure on logging level here, but it seems, would make sense to have it at debug,
 						// so we could flawlessly point Syphon to a dummy endpoint.
